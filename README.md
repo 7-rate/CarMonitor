@@ -12,3 +12,10 @@
 # 使い方
 - ボタンAとボタンCで基準気圧を設定できます。
 - ボタンBで高度表示画面とDPF表示画面を切り替えます。
+
+# 表示
+- 高度表示画面
+  - TBD
+- DPF表示画面
+    ![DPF_OFF](docs/images/DPF_OFF.jpg "DPF_OFF")
+    ![DPF_ON](docs/images/DPF_ON.jpg "DPF_ON")
