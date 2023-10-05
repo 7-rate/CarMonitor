@@ -1,11 +1,12 @@
-#include <Wire.h>
 #include <M5Stack.h>
+#include <Wire.h>
 #include <Adafruit_BMP280.h>
-#include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <BluetoothSerial.h>
 #include <ELMduino.h>
 #include <Preferences.h>
+#include <MPU6050.h>
+#include <MadgwickAHRS.h>
 
 /******************************************************************/
 /* Definitions                                                    */
@@ -20,6 +21,7 @@
 enum {
     SCREEN_ALTITUDE,
     SCREEN_DPF_STATUS,
+    SCREEN_YRP,
     SCREEN_NUM
 };
 
@@ -32,13 +34,20 @@ const uint16_t DPF_REGENERATION_STATUS = 0x0380;
 
 #define PM_MAX (6.0)
 
+// MPU6050 offsets
+#define MPU6050_XA_OFFSET (-3164 )
+#define MPU6050_YA_OFFSET ( 348 )
+#define MPU6050_ZA_OFFSET ( 2009 )
+#define MPU6050_XG_OFFSET ( -49 )
+#define MPU6050_YG_OFFSET ( -15 )
+#define MPU6050_ZG_OFFSET ( -61 )
+
 /***********************************/
 /* Local Variables                 */
 /***********************************/
 uint8_t ELM327_MACADDRESS[] = {0xAA,0xBB,0xCC,0x11,0x22,0x33};
 
 Adafruit_BMP280 bmp;
-Adafruit_MPU6050 mpu;
 ELM327 elm;
 BluetoothSerial SerialBT;
 Preferences preferences;
@@ -60,6 +69,14 @@ int dpf_reg_dist;
 int dpf_reg_status;
 
 static unsigned long tmr_obd_timeout;
+
+
+MPU6050 mpu(0x68);
+int16_t ax, ay, az;
+int16_t gx, gy, gz;
+float roll, pitch, yaw;
+Madgwick madgwickfilter;
+
 
 /***********************************/
 /* Global Variables                */
@@ -208,6 +225,60 @@ static void display_dpf_status() {
     }
 }
 
+static void display_yrp() {
+    if (tmr + WAIT < millis()) {
+        tmr = millis();
+
+        sprite.fillScreen(BLACK);
+        sprite.setTextSize(3);
+        sprite.setCursor(20, 8);
+        sprite.fillRect(0, 0, 320, 40, WHITE);
+        sprite.setTextColor(BLACK);
+        sprite.printf("YawRollPitch");
+
+        sprite.setCursor(10, 50);
+        sprite.setTextSize(2);
+        sprite.setTextColor(WHITE);
+        sprite.printf("Yaw: ");
+        sprite.printf("%.2f", yaw);
+
+        sprite.setCursor(10, 80);
+        sprite.printf("Roll: ");
+        sprite.printf("%.2f", roll);
+
+        sprite.setCursor(10, 110);
+        sprite.printf("Pitch: ");
+        sprite.printf("%.2f", pitch);
+
+
+        sprite.setCursor(10, 150);
+        sprite.printf("ax: ");
+        sprite.printf("%.2f", ax / 16384.0);
+
+        sprite.setCursor(10, 180);
+        sprite.printf("ay: ");
+        sprite.printf("%.2f", ay / 16384.0);
+
+        sprite.setCursor(10, 210);
+        sprite.printf("az: ");
+        sprite.printf("%.2f", az / 16384.0);
+
+        sprite.setCursor(160, 150);
+        sprite.printf("gx: ");
+        sprite.printf("%.2f", gx / 131.0);
+
+        sprite.setCursor(160, 180);
+        sprite.printf("gy: ");
+        sprite.printf("%.2f", gy / 131.0);
+
+        sprite.setCursor(160, 210);
+        sprite.printf("gz: ");
+        sprite.printf("%.2f", gz / 131.0);
+
+        sprite.pushSprite(0, 0);
+    }
+}
+
 /***********************************/
 /* Global functions                */
 /***********************************/
@@ -253,27 +324,20 @@ void setup() {
     sprite.printf("Init MPU6050...");
     sprite.pushSprite(0, 0);
     error = false;
-    if (!mpu.begin()) {
-        Serial.println("Error MPU6050");
-        error = true;
-    }
-    if (!error) {
-        mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
-        Serial.print("Accelerometer range set to: ");
-        Serial.println("+-8G");
+    mpu.initialize();
+    mpu.setXAccelOffset(MPU6050_XA_OFFSET);
+    mpu.setYAccelOffset(MPU6050_YA_OFFSET);
+    mpu.setZAccelOffset(MPU6050_ZA_OFFSET);
+    mpu.setXGyroOffset(MPU6050_XG_OFFSET);
+    mpu.setYGyroOffset(MPU6050_YG_OFFSET);
+    mpu.setZGyroOffset(MPU6050_ZG_OFFSET);
 
-        mpu.setGyroRange(MPU6050_RANGE_500_DEG);
-        Serial.print("Gyro range set to: ");
-        Serial.println("+- 500 deg/s");
-
-        mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
-        Serial.print("Filter bandwidth set to: ");
-        Serial.println("21 Hz");
-
-    }
     sprite.setCursor(240, 50);
     sprite.print("done!");
     sprite.pushSprite(0, 0);
+
+    //Initializing Madgwick
+    madgwickfilter.begin(100); //sampling 100Hz
 
     //Connecting ELM327
     if (flag_use_bt) {
@@ -318,6 +382,14 @@ void setup() {
 void loop() { 
     M5.update();
 
+    // update sensor
+    mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+    madgwickfilter.updateIMU(gx / 131.0, gy / 131.0, gz / 131.0, ax / 16384.0, ay / 16384.0, az / 16384.0);
+    roll = madgwickfilter.getRoll();
+    pitch = madgwickfilter.getPitch();
+    yaw = madgwickfilter.getYaw();
+
+    // process display
     switch (screen) {
         case SCREEN_ALTITUDE:
             display_altitude();
@@ -325,10 +397,14 @@ void loop() {
         case SCREEN_DPF_STATUS:
             display_dpf_status();
             break;
+        case SCREEN_YRP:
+            display_yrp();
+            break;
         default:
             break;
     }
 
+    // process button
     if (M5.BtnC.wasPressed() ) {
         pressure_offset--;
         preferences.putInt("pressure_offset", pressure_offset);
