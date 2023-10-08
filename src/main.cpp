@@ -12,19 +12,35 @@ enum {
     SCREEN_ALTITUDE,
     SCREEN_DPF_STATUS,
     SCREEN_YRP,
+    SCREEN_ACC_MONITOR,
+    SCREEN_SETTING,
     SCREEN_NUM
 };
+
+#define SCREEN_TITLE(x) \
+    sprite.fillRect(0, 0, 320, 40, WHITE); \
+    sprite.setTextColor(BLACK); \
+    sprite.setFreeFont(&FreeMonoBold12pt7b); \
+    sprite.setTextSize(2); \
+    sprite.setCursor(20, 35); \
+    sprite.printf(x);
+
+#define SET_FONT_AND_SIZE(x, y) \
+    sprite.setFreeFont(&x); \
+    sprite.setTextSize(y);
 
 /***********************************/
 /* Local Variables                 */
 /***********************************/
 static unsigned long tmr;
 static const unsigned long WAIT = 100;
+static const unsigned long WAIT_MONI = 10;
 
 static unsigned long tmr_save_prefarences;
 static const unsigned long SAVE_PREFARENCES_CYCLE = 1000; // 1sec
 
-int screen;
+static int screen;
+static float altitude_old;
 
 /***********************************/
 /* Global Variables                */
@@ -38,29 +54,26 @@ TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
 /***********************************/
 /* Local functions                 */
 /***********************************/
+
 static void display_altitude() {
     if (tmr + WAIT < millis()) {
         tmr = millis();
 
         // display
         sprite.fillScreen(BLACK);
-        sprite.fillRect(0, 0, 320, 40, WHITE);
-        sprite.setTextSize(3);
-        sprite.setTextColor(BLACK);
-        sprite.setCursor(20, 8);
-        sprite.printf("Altitude");
+        SCREEN_TITLE("Altitude");
 
-        sprite.setTextSize(7);
         sprite.setTextColor(WHITE);
-        sprite.setCursor(50, 70);
+        SET_FONT_AND_SIZE(FreeMonoBold18pt7b, 3);
+        sprite.setCursor(50, 140);
         sprite.printf("%dm", (int)altitude);
 
-        sprite.setTextSize(2);
-        sprite.setCursor(20, 160);
+        SET_FONT_AND_SIZE(FreeMono9pt7b, 1);
+        sprite.setCursor(20, 180);
         sprite.printf("sea:%dhPa", (int)SEALEVELPRESSURE_HPA + (int)sealevel_pressure_offset);
         sprite.setCursor(20, 200);
         sprite.printf("cur:%dhPa", (int)(pressure/100.0));
-        sprite.setCursor(180, 160);
+        sprite.setCursor(20, 220);
         sprite.printf("temp:%ddeg", (int)(temp));
 
         sprite.pushSprite(0, 0);
@@ -73,44 +86,40 @@ static void display_dpf_status() {
         tmr = millis();
 
         sprite.fillScreen(BLACK);
-        sprite.setTextSize(3);
-        sprite.setCursor(20, 8);
-        sprite.fillRect(0, 0, 320, 40, dpf_reg_status ? RED : WHITE);
-        sprite.setTextColor(BLACK);
-        sprite.printf("DPF Status:%d", dpf_reg_status);
+        SCREEN_TITLE("DPF status");
 
-        sprite.setCursor(10, 65);
-        sprite.setTextSize(2);
         sprite.setTextColor(WHITE);
+        SET_FONT_AND_SIZE(FreeMono9pt7b, 1);
+        sprite.setCursor(10, 75);
         sprite.printf("Acum");
         percent = (int)(dpf_pm_accum / PM_MAX * 100);
         percent = min(percent, 100);
         sprite.drawRect(70, 60, 150, 30, WHITE);
         sprite.fillRect(70, 60, 150 * percent / 100, 30, WHITE);
-        sprite.setCursor(230, 65);
+        sprite.setCursor(230, 75);
         sprite.printf("%.2fg/L", dpf_pm_accum);
 
-        sprite.setCursor(10, 105);
+        sprite.setCursor(10, 115);
         sprite.printf("Gene");
         percent = (int)(dpf_pm_gen / PM_MAX * 100);
         percent = min(percent, 100);
         sprite.drawRect(70, 100, 150, 30, WHITE);
         sprite.fillRect(70, 100, 150 * percent / 100, 30, WHITE);
-        sprite.setCursor(230, 105);
+        sprite.setCursor(230, 115);
         sprite.printf("%.2fg/L", dpf_pm_gen);
 
-        sprite.setCursor(20, 160);
-        sprite.setTextSize(2);
+        SET_FONT_AND_SIZE(FreeMono9pt7b, 2);
+        sprite.setCursor(20, 170);
         sprite.printf("Count");
-        sprite.setTextSize(4);
-        sprite.setCursor(20, 190);
+        SET_FONT_AND_SIZE(FreeMono9pt7b, 3);
+        sprite.setCursor(20, 220);
         sprite.printf("%d", dpf_reg_count);
 
-        sprite.setCursor(180, 160);
-        sprite.setTextSize(2);
+        SET_FONT_AND_SIZE(FreeMono9pt7b, 2);
+        sprite.setCursor(180, 170);
         sprite.printf("Dist");
-        sprite.setTextSize(4);
-        sprite.setCursor(180, 190);
+        SET_FONT_AND_SIZE(FreeMono9pt7b, 3);
+        sprite.setCursor(180, 220);
         sprite.printf("%dkm", dpf_reg_dist);
 
         sprite.pushSprite(0, 0);
@@ -122,53 +131,69 @@ static void display_yrp() {
         tmr = millis();
 
         sprite.fillScreen(BLACK);
-        sprite.setTextSize(3);
-        sprite.setCursor(20, 8);
-        sprite.fillRect(0, 0, 320, 40, WHITE);
-        sprite.setTextColor(BLACK);
-        sprite.printf("YawRollPitch");
+        SCREEN_TITLE("MPU6050");
 
-        sprite.setCursor(10, 50);
-        sprite.setTextSize(2);
+        SET_FONT_AND_SIZE(FreeMono9pt7b, 1);
+        sprite.setCursor(10, 60);
         sprite.setTextColor(WHITE);
         sprite.printf("Yaw: ");
         sprite.printf("%.2f", yaw);
-
-        sprite.setCursor(10, 80);
+        sprite.setCursor(10, 90);
         sprite.printf("Roll: ");
         sprite.printf("%.2f", roll);
-
-        sprite.setCursor(10, 110);
+        sprite.setCursor(10, 120);
         sprite.printf("Pitch: ");
         sprite.printf("%.2f", pitch);
 
 
-        sprite.setCursor(10, 150);
+        sprite.setCursor(10, 160);
         sprite.printf("ax: ");
         sprite.printf("%.2f", ax / 16384.0);
-
-        sprite.setCursor(10, 180);
+        sprite.setCursor(10, 190);
         sprite.printf("ay: ");
         sprite.printf("%.2f", ay / 16384.0);
-
-        sprite.setCursor(10, 210);
+        sprite.setCursor(10, 220);
         sprite.printf("az: ");
         sprite.printf("%.2f", az / 16384.0);
 
-        sprite.setCursor(160, 150);
+        sprite.setCursor(160, 160);
         sprite.printf("gx: ");
         sprite.printf("%.2f", gx / 131.0);
-
-        sprite.setCursor(160, 180);
+        sprite.setCursor(160, 190);
         sprite.printf("gy: ");
         sprite.printf("%.2f", gy / 131.0);
-
-        sprite.setCursor(160, 210);
+        sprite.setCursor(160, 220);
         sprite.printf("gz: ");
         sprite.printf("%.2f", gz / 131.0);
 
         sprite.pushSprite(0, 0);
     }
+}
+
+static void display_acc_monitor() {
+    if (tmr + WAIT_MONI < millis()) {
+        tmr = millis();
+        sprite.fillScreen(BLACK);
+
+        int32_t x = (int32_t)(160.0 + (160.0 * ((-ay_filterd) / 16384.0)));
+        int32_t y = (int32_t)(120.0 + (120.0 * ((az_filterd) / 16384.0)));
+
+        sprite.drawCircle(x, y, 10, WHITE);
+        sprite.pushSprite(0, 0);
+    }
+}
+
+static void display_setting() {
+    if (tmr + WAIT < millis()) {
+        tmr = millis();
+
+        sprite.fillScreen(BLACK);
+        SCREEN_TITLE("Setting");
+
+    }
+
+    // MPU6050 calibration
+    sprite.pushSprite(0, 0);
 }
 
 /***********************************/
@@ -210,7 +235,6 @@ void loop() {
     bmp_exec();
     car_param_exec();
 
-    // process display
     switch (screen) {
         case SCREEN_ALTITUDE:
             display_altitude();
@@ -221,16 +245,21 @@ void loop() {
         case SCREEN_YRP:
             display_yrp();
             break;
+        case SCREEN_ACC_MONITOR:
+            display_acc_monitor();
+            break;
+        case SCREEN_SETTING:
+            display_setting();
+            break;
         default:
             break;
     }
 
-    // process button
     if (M5.BtnC.wasPressed() ) {
-        sealevel_pressure_offset -= 1.0;
+        sealevel_pressure_offset -= 0.5;
     }
     if (M5.BtnA.wasPressed() ) {
-        sealevel_pressure_offset += 1.0;
+        sealevel_pressure_offset += 0.5;
     }
 
     if (M5.BtnB.wasPressed() ) {
@@ -243,6 +272,9 @@ void loop() {
 
     if ( tmr_save_prefarences + SAVE_PREFARENCES_CYCLE < millis() ) {
         tmr_save_prefarences = millis();
-        preferences.putFloat("altitude", altitude);
+        if (altitude_old != altitude) {
+            altitude_old = altitude;
+            preferences.putFloat("altitude", altitude);
+        }
     }
 }

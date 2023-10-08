@@ -38,6 +38,7 @@ static unsigned long tmr_mpu;
 /* Global Variables                */
 /***********************************/
 int16_t ax, ay, az;
+int32_t ax_filterd, ay_filterd, az_filterd;
 int16_t gx, gy, gz;
 float roll, pitch, yaw;
 float temp, pressure, altitude;
@@ -77,10 +78,14 @@ void accelgyro_init() {
 void accelgyro_exec() {
     if (tmr_mpu + MPU_UPDATE_CYCLE < millis()) {
         mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+        ax_filterd = (ax_filterd + ((int32_t)ax * 9)) /10 ;
+        ay_filterd = (ay_filterd + ((int32_t)ay * 9)) /10 ;
+        az_filterd = (az_filterd + ((int32_t)az * 9)) /10 ;
         madgwickfilter.updateIMU(gx / 131.0, gy / 131.0, gz / 131.0, ax / 16384.0, ay / 16384.0, az / 16384.0);
         roll = madgwickfilter.getRoll();
         pitch = madgwickfilter.getPitch();
         yaw = madgwickfilter.getYaw();
+
     }
 }
 
