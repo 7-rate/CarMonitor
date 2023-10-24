@@ -8,6 +8,9 @@
 /***********************************/
 /* Local definitions               */
 /***********************************/
+static const unsigned long WAIT = 100;
+static const unsigned long WAIT_MONI = 10;
+
 enum {
     SCREEN_ALTITUDE,
     SCREEN_DPF_STATUS,
@@ -16,6 +19,14 @@ enum {
     SCREEN_SETTING,
     SCREEN_NUM
 };
+
+#define SCREEN_TITLE_BG_RED(x) \
+    sprite.fillRect(0, 0, 320, 40, RED); \
+    sprite.setTextColor(BLACK); \
+    sprite.setFreeFont(&FreeMonoBold12pt7b); \
+    sprite.setTextSize(2); \
+    sprite.setCursor(20, 35); \
+    sprite.printf(x);
 
 #define SCREEN_TITLE(x) \
     sprite.fillRect(0, 0, 320, 40, WHITE); \
@@ -33,8 +44,7 @@ enum {
 /* Local Variables                 */
 /***********************************/
 static unsigned long tmr;
-static const unsigned long WAIT = 100;
-static const unsigned long WAIT_MONI = 10;
+static unsigned long tmr_button[3]; //button A,B,C
 
 static unsigned long tmr_save_prefarences;
 static const unsigned long SAVE_PREFARENCES_CYCLE = 1000; // 1sec
@@ -54,6 +64,31 @@ TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
 /***********************************/
 /* Local functions                 */
 /***********************************/
+static void btn_process(int button, void func(void)) {
+    Button* btn;
+    switch (button) {
+        case BTN_A:
+            btn = &M5.BtnA;
+            break;
+        case BTN_B:
+            btn = &M5.BtnB;
+            break;
+        case BTN_C:
+            btn = &M5.BtnC;
+            break;
+        default:
+            btn = NULL; // kill
+            return;
+    }
+    if (btn->wasPressed() ) {
+        func();
+    }
+    // long press increase/decrease
+    if (btn->pressedFor(1000) && tmr_button[button] + 10 < millis() ) {
+        tmr_button[button] = millis();
+        func();
+    }
+}
 
 static void display_altitude() {
     if (tmr + WAIT < millis()) {
@@ -86,7 +121,11 @@ static void display_dpf_status() {
         tmr = millis();
 
         sprite.fillScreen(BLACK);
-        SCREEN_TITLE("DPF status");
+        if (dpf_reg_status) {
+            SCREEN_TITLE_BG_RED("DPF status");
+        } else {
+            SCREEN_TITLE("DPF status");
+        }
 
         sprite.setTextColor(WHITE);
         SET_FONT_AND_SIZE(FreeMono9pt7b, 1);
@@ -170,15 +209,30 @@ static void display_yrp() {
     }
 }
 
+static int frame_count = 0;
+static int fps = 0;
+static int sec = 0;
 static void display_acc_monitor() {
     if (tmr + WAIT_MONI < millis()) {
         tmr = millis();
         sprite.fillScreen(BLACK);
 
+
+        SET_FONT_AND_SIZE(FreeMono9pt7b, 1);
+        sprite.setCursor(10, 20);
+        sprite.setTextColor(WHITE);
+        sprite.printf("FPS: %d", fps);
+
         int32_t x = (int32_t)(160.0 + (160.0 * ((-ay_filterd) / 16384.0)));
         int32_t y = (int32_t)(120.0 + (120.0 * ((az_filterd) / 16384.0)));
 
         sprite.drawCircle(x, y, 10, WHITE);
+        frame_count++;
+        if (sec != millis() / 1000) {
+            fps = frame_count;
+            sec = millis() / 1000;
+            frame_count = 0;
+        }
         sprite.pushSprite(0, 0);
     }
 }
@@ -223,7 +277,7 @@ void setup() {
     accelgyro_init();
 
     //Initializing ELM327
-    //car_param_init();
+    car_param_init();
 
     delay(1000);
 }
@@ -238,6 +292,12 @@ void loop() {
     switch (screen) {
         case SCREEN_ALTITUDE:
             display_altitude();
+            btn_process(BTN_A, [](){
+                sealevel_pressure_offset++;
+                });
+            btn_process(BTN_C, [](){
+                sealevel_pressure_offset--;
+                });
             break;
         case SCREEN_DPF_STATUS:
             display_dpf_status();
@@ -255,24 +315,18 @@ void loop() {
             break;
     }
 
-    if (M5.BtnC.wasPressed() ) {
-        sealevel_pressure_offset -= 0.5;
-    }
-    if (M5.BtnA.wasPressed() ) {
-        sealevel_pressure_offset += 0.5;
-    }
 
-    if (M5.BtnB.wasPressed() ) {
+    btn_process(BTN_B, [](){
         screen++;
         if (screen >= SCREEN_NUM) {
             screen = SCREEN_ALTITUDE;
         }
         preferences.putInt("screen", screen);
-    }
+        });
 
     if ( tmr_save_prefarences + SAVE_PREFARENCES_CYCLE < millis() ) {
         tmr_save_prefarences = millis();
-        if (altitude_old != altitude) {
+        if ((int)altitude_old != (int)altitude) { // To reduce the number of write acceses to flash memory
             altitude_old = altitude;
             preferences.putFloat("altitude", altitude);
         }
