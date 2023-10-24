@@ -117,6 +117,10 @@ void car_param_init() {
     sprite.print(error?"err!!":"done!");
     sprite.pushSprite(0, 0);
 
+    if (error) {
+        return ;
+    }
+
     sprite.setCursor(10, 110);
     sprite.printf("Init ELM327 phase2...");
     sprite.pushSprite(0, 0);
@@ -129,6 +133,10 @@ void car_param_init() {
     sprite.setCursor(10, 180);
     sprite.print(error?"Init Error!":"Init Complete!");
     sprite.pushSprite(0, 0);
+
+    if (error) {
+        return ;
+    }
     xTaskCreatePinnedToCore(task_update_obd, "task_update_obd", 4096, NULL, 1, NULL, 0);
 }
 
