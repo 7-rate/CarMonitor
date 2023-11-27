@@ -223,8 +223,8 @@ static void display_acc_monitor() {
         sprite.setTextColor(WHITE);
         sprite.printf("FPS: %d", fps);
 
-        int32_t x = (int32_t)(160.0 + (160.0 * ((-ay_filterd) / 16384.0)));
-        int32_t y = (int32_t)(120.0 + (120.0 * ((az_filterd) / 16384.0)));
+        int32_t x = (int32_t)(160.0 + (160.0 * ((-ay) / 16384.0)));
+        int32_t y = (int32_t)(120.0 + (120.0 * ((az) / 16384.0)));
 
         sprite.drawCircle(x, y, 10, WHITE);
         frame_count++;
@@ -285,18 +285,14 @@ void setup() {
 void loop() { 
     M5.update();
 
-    accelgyro_exec();
-    bmp_exec();
-    car_param_exec();
-
     switch (screen) {
         case SCREEN_ALTITUDE:
             display_altitude();
             btn_process(BTN_A, [](){
-                sealevel_pressure_offset++;
+                sealevel_pressure_offset += 0.5;
                 });
             btn_process(BTN_C, [](){
-                sealevel_pressure_offset--;
+                sealevel_pressure_offset += -0.5;
                 });
             break;
         case SCREEN_DPF_STATUS:
