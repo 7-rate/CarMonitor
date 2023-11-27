@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include "sensors.h"
 #include "common.h"
 #include <Wire.h>
@@ -50,6 +51,40 @@ float sealevel_pressure_offset;
 /***********************************/
 /* Local functions                 */
 /***********************************/
+static void accelgyro_exec() {
+    // if (tmr_mpu + MPU_UPDATE_CYCLE < millis()) {
+        mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+        madgwickfilter.updateIMU(gx / 131.0, gy / 131.0, gz / 131.0, ax / 16384.0, ay / 16384.0, az / 16384.0);
+        roll = madgwickfilter.getRoll();
+        pitch = madgwickfilter.getPitch();
+        yaw = madgwickfilter.getYaw();
+
+    // }
+}
+
+static void accelgyro_task(void *pvParameters) {
+    while (1) {
+        accelgyro_exec();
+        delay(MPU_UPDATE_CYCLE);
+    }
+}
+
+static void bmp_exec() {
+    if (/*tmr_bmp + BMP_UPDATE_CYCLE < millis() &&*/ bmp.takeForcedMeasurement()) {
+        tmr_bmp = millis();
+        temp = bmp.readTemperature() + TEMP_OFFSET;
+        pressure = bmp.readPressure();
+        altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA + sealevel_pressure_offset);
+    }
+}
+
+static void bmp_task(void *pvParameters) {
+    while (1) {
+        bmp_exec();
+        delay(BMP_UPDATE_CYCLE);
+    }
+}
+
 
 /***********************************/
 /* Class implementions             */
@@ -73,21 +108,11 @@ void accelgyro_init() {
     sprite.setCursor(240, 50);
     sprite.print("done!");
     sprite.pushSprite(0, 0);
+
+    xTaskCreatePinnedToCore( accelgyro_task, "accelgyro_task", 4096, NULL, 1, NULL, 0 );
 }
 
-void accelgyro_exec() {
-    if (tmr_mpu + MPU_UPDATE_CYCLE < millis()) {
-        mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
-        ax_filterd = (ax_filterd + ((int32_t)ax * 9)) /10 ;
-        ay_filterd = (ay_filterd + ((int32_t)ay * 9)) /10 ;
-        az_filterd = (az_filterd + ((int32_t)az * 9)) /10 ;
-        madgwickfilter.updateIMU(gx / 131.0, gy / 131.0, gz / 131.0, ax / 16384.0, ay / 16384.0, az / 16384.0);
-        roll = madgwickfilter.getRoll();
-        pitch = madgwickfilter.getPitch();
-        yaw = madgwickfilter.getYaw();
 
-    }
-}
 
 void bmp_init() {
     sprite.setCursor(10, 20);
@@ -119,13 +144,5 @@ void bmp_init() {
     sprite.print("done!");
     sprite.pushSprite(0, 0);
 
-}
-
-void bmp_exec() {
-    if (tmr_bmp + BMP_UPDATE_CYCLE < millis() && bmp.takeForcedMeasurement()) {
-        tmr_bmp = millis();
-        temp = bmp.readTemperature() + TEMP_OFFSET;
-        pressure = bmp.readPressure();
-        altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA + sealevel_pressure_offset);
-    }
+    xTaskCreatePinnedToCore( bmp_task, "bmp_task", 4096, NULL, 1, NULL, 0 );
 }

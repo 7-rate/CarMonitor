@@ -15,9 +15,7 @@
 /* Global functions                */
 /***********************************/
 void accelgyro_init();
-void accelgyro_exec();
 void bmp_init();
-void bmp_exec();
 
 /***********************************/
 /* Global Variables                */
