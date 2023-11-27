@@ -99,17 +99,31 @@ static void display_altitude() {
         SCREEN_TITLE("Altitude");
 
         sprite.setTextColor(WHITE);
-        SET_FONT_AND_SIZE(FreeMonoBold18pt7b, 3);
-        sprite.setCursor(50, 140);
-        sprite.printf("%dm", (int)altitude);
+        SET_FONT_AND_SIZE(FreeMonoBold18pt7b, 2);
+        sprite.setCursor(10, 90);
+        sprite.printf("BMP:%dm", (int)altitude);
+        sprite.setCursor(10, 150);
+        sprite.printf("LPS:%dm", (int)altitude_lps);
 
         SET_FONT_AND_SIZE(FreeMono9pt7b, 1);
-        sprite.setCursor(20, 180);
-        sprite.printf("sea:%dhPa", (int)SEALEVELPRESSURE_HPA + (int)sealevel_pressure_offset);
-        sprite.setCursor(20, 200);
-        sprite.printf("cur:%dhPa", (int)(pressure/100.0));
-        sprite.setCursor(20, 220);
-        sprite.printf("temp:%ddeg", (int)(temp));
+        sprite.setCursor(20, 170);
+        sprite.printf("BMP");
+        sprite.setCursor(20, 190);
+        sprite.printf("sea:%.2fhPa", SEALEVELPRESSURE_HPA + sealevel_pressure_offset);
+        sprite.setCursor(20, 210);
+        sprite.printf("cur:%.2fhPa", (pressure/100.0));
+        sprite.setCursor(20, 230);
+        sprite.printf("temp:%.2fdeg", (temp));
+
+        sprite.setCursor(190, 170);
+        sprite.printf("LPS");
+        sprite.setCursor(190, 190);
+        sprite.printf("%.2fhPa", SEALEVELPRESSURE_HPA + sealevel_pressure_offset);
+        sprite.setCursor(190, 210);
+        sprite.printf("%.2fhPa", (pressure_lps));
+        sprite.setCursor(190, 230);
+        sprite.printf("%.2fdeg", (temp_lps));
+
 
         sprite.pushSprite(0, 0);
     }
@@ -275,6 +289,9 @@ void setup() {
 
     //Initializing MPU6050
     accelgyro_init();
+
+    //Initializing LPS25HB
+    lps_init();
 
     //Initializing ELM327
     car_param_init();

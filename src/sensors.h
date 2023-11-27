@@ -16,6 +16,7 @@
 /***********************************/
 void accelgyro_init();
 void bmp_init();
+void lps_init();
 
 /***********************************/
 /* Global Variables                */
@@ -27,3 +28,5 @@ extern float roll, pitch, yaw;
 
 extern float temp, pressure, altitude;
 extern float sealevel_pressure_offset;
+
+extern float temp_lps, pressure_lps, altitude_lps;

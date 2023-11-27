@@ -108,7 +108,7 @@ void car_param_init() {
     bool error;
 
     //Connecting ELM327
-    sprite.setCursor(10, 80);
+    sprite.setCursor(10, 110);
     sprite.printf("Init ELM327 phase1...");
     sprite.pushSprite(0, 0);
     SerialBT.begin("ArduHUD", true);
@@ -121,7 +121,7 @@ void car_param_init() {
         return ;
     }
 
-    sprite.setCursor(10, 110);
+    sprite.setCursor(10, 140);
     sprite.printf("Init ELM327 phase2...");
     sprite.pushSprite(0, 0);
     error = !elm.begin(SerialBT, true, 2000);
@@ -130,7 +130,7 @@ void car_param_init() {
     sprite.pushSprite(0, 0);
 
     sprite.setTextSize(4);
-    sprite.setCursor(10, 180);
+    sprite.setCursor(10, 200);
     sprite.print(error?"Init Error!":"Init Complete!");
     sprite.pushSprite(0, 0);
 

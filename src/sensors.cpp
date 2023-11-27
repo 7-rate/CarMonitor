@@ -6,6 +6,7 @@
 #include <MadgwickAHRS.h>
 #include <Adafruit_BMP280.h>
 #include <Adafruit_Sensor.h>
+#include <SparkFun_LPS25HB_Arduino_Library.h>
 
 /******************************************************************/
 /* Definitions                                                    */
@@ -21,8 +22,9 @@
 #define MPU6050_YG_OFFSET ( -15 )
 #define MPU6050_ZG_OFFSET ( -61 )
 
-#define BMP_UPDATE_CYCLE (100)
+#define BMP_UPDATE_CYCLE (500)
 #define MPU_UPDATE_CYCLE (100)
+#define LPS_UPDATE_CYCLE (500)
 
 #define TEMP_OFFSET (-2.5)
 
@@ -34,6 +36,7 @@ static Madgwick madgwickfilter;
 static Adafruit_BMP280 bmp;
 static unsigned long tmr_bmp;
 static unsigned long tmr_mpu;
+static LPS25HB lps;
 
 /***********************************/
 /* Global Variables                */
@@ -44,6 +47,8 @@ int16_t gx, gy, gz;
 float roll, pitch, yaw;
 float temp, pressure, altitude;
 float sealevel_pressure_offset;
+
+float temp_lps, pressure_lps, altitude_lps;
 
 /******************************************************************/
 /* Implementation                                                 */
@@ -75,6 +80,14 @@ static void bmp_exec() {
         temp = bmp.readTemperature() + TEMP_OFFSET;
         pressure = bmp.readPressure();
         altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA + sealevel_pressure_offset);
+        Serial.println("------BMP----------");
+        Serial.print("Temp: ");
+        Serial.println(temp);
+        Serial.print("Pressure: ");
+        Serial.println(pressure);
+        Serial.print("Altitude: ");
+        Serial.println(altitude);
+        Serial.println("-------------------");
     }
 }
 
@@ -85,6 +98,36 @@ static void bmp_task(void *pvParameters) {
     }
 }
 
+//以下より、現在地の高度を計算する関数
+//海面気圧:(SEALEVELPRESSURE_HPA+sealevel_pressure_offset)
+//現在地気圧：pressure
+static float pressure2altitude(float pressure) {
+    float altitude = 44330.0 * (1.0 - pow(pressure / (SEALEVELPRESSURE_HPA + sealevel_pressure_offset), 0.1903));
+    return altitude;
+}
+
+static void lps_exec() {
+    if (lps.isConnected()) {
+        temp_lps = lps.getTemperature_degC();
+        pressure_lps = lps.getPressure_hPa();
+        altitude_lps = pressure2altitude(pressure_lps);
+        Serial.println("------LPS----------");
+        Serial.print("Temp: ");
+        Serial.println(temp_lps);
+        Serial.print("Pressure: ");
+        Serial.println(pressure_lps);
+        Serial.print("Altitude: ");
+        Serial.println(altitude_lps);
+        Serial.println("-------------------");
+    }
+}
+
+static void lps_task(void *pvParameters) {
+    while (1) {
+        lps_exec();
+        delay(LPS_UPDATE_CYCLE);
+    }
+}
 
 /***********************************/
 /* Class implementions             */
@@ -145,4 +188,25 @@ void bmp_init() {
     sprite.pushSprite(0, 0);
 
     xTaskCreatePinnedToCore( bmp_task, "bmp_task", 4096, NULL, 1, NULL, 0 );
+}
+
+void lps_init() {
+    sprite.setCursor(10, 80);
+    sprite.print("Init LPS25HB...");
+    sprite.pushSprite(0, 0);
+
+    Wire.begin();
+    lps.begin(Wire, LPS25HB_I2C_ADDR_DEF);
+    delay(50);
+    Serial.print("lps setup waiting");
+    while (!lps.isConnected()) {
+        Serial.print(".");
+        delay(50);
+    }
+
+    sprite.setCursor(240, 80);
+    sprite.print("done!");
+    sprite.pushSprite(0, 0);
+
+    xTaskCreatePinnedToCore( lps_task, "lps_task", 4096, NULL, 1, NULL, 0 );
 }
