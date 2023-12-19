@@ -296,7 +296,7 @@ void setup() {
     //Initializing ELM327
     car_param_init();
 
-    delay(1000);
+    delay(1000); // wait for sensor init
 }
 
 void loop() { 
