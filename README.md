@@ -3,7 +3,9 @@
 
 # 機能
 - 気圧から高度を計算し、表示します。
+  - センサはBMP280、LPS22HBに対応しています。
 - (Mazdaディーゼル車のみ)DPFのステータスをbluetooth OBD2アダプタから取得し、表示します。
+
 
 # ビルド方法
 - vscodeとPlatformIOをインストールします。
@@ -15,7 +17,7 @@
 
 # 表示
 - 高度表示画面
-  - TBD
+  - ![Altitude](docs/images/Altitude.jpg "Altitude")
 - DPF表示画面
     ![DPF_OFF](docs/images/DPF_OFF.jpg "DPF_OFF")
     ![DPF_ON](docs/images/DPF_ON.jpg "DPF_ON")
