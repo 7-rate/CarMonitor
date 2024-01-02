@@ -7,6 +7,7 @@
 #include <Adafruit_BMP280.h>
 #include <Adafruit_Sensor.h>
 #include <SparkFun_LPS25HB_Arduino_Library.h>
+#include "car_param.h"
 
 /******************************************************************/
 /* Definitions                                                    */
@@ -36,6 +37,7 @@ static Madgwick madgwickfilter;
 static Adafruit_BMP280 bmp;
 static unsigned long tmr_bmp;
 static unsigned long tmr_mpu;
+static unsigned long tmr_lps;
 static LPS25HB lps;
 
 /***********************************/
@@ -49,6 +51,8 @@ float temp, pressure, altitude;
 float sealevel_pressure_offset;
 
 float temp_lps, pressure_lps, altitude_lps;
+
+bool is_temperature_from_sensord = false;
 
 /******************************************************************/
 /* Implementation                                                 */
@@ -70,7 +74,7 @@ static void accelgyro_exec() {
 static void accelgyro_task(void *pvParameters) {
     while (1) {
         accelgyro_exec();
-        delay(MPU_UPDATE_CYCLE);
+        vTaskDelay(MPU_UPDATE_CYCLE / portTICK_PERIOD_MS);
     }
 }
 
@@ -94,23 +98,25 @@ static void bmp_exec() {
 static void bmp_task(void *pvParameters) {
     while (1) {
         bmp_exec();
-        delay(BMP_UPDATE_CYCLE);
+        vTaskDelay(BMP_UPDATE_CYCLE / portTICK_PERIOD_MS);
     }
 }
 
 //以下より、現在地の高度を計算する関数
 //海面気圧:(SEALEVELPRESSURE_HPA+sealevel_pressure_offset)
 //現在地気圧：pressure
-static float pressure2altitude(float pressure) {
-    float altitude = 44330.0 * (1.0 - pow(pressure / (SEALEVELPRESSURE_HPA + sealevel_pressure_offset), 0.1903));
+static float pressure2altitude(float pressure, float temp) {
+    // float altitude = 44330.0 * (1.0 - pow(pressure / (SEALEVELPRESSURE_HPA + sealevel_pressure_offset), 0.1903));
+    float altitude = ((pow(((SEALEVELPRESSURE_HPA + sealevel_pressure_offset)/pressure), 1/5.257) - 1.0) * (temp + 273.15)) / 0.0065;
     return altitude;
 }
 
 static void lps_exec() {
-    if (lps.isConnected()) {
+    if ( ( lps.isConnected() )
+      && ( tmr_lps + LPS_UPDATE_CYCLE < millis())) {
+        tmr_lps = millis();
         temp_lps = lps.getTemperature_degC();
         pressure_lps = lps.getPressure_hPa();
-        altitude_lps = pressure2altitude(pressure_lps);
         Serial.println("------LPS----------");
         Serial.print("Temp: ");
         Serial.println(temp_lps);
@@ -120,12 +126,13 @@ static void lps_exec() {
         Serial.println(altitude_lps);
         Serial.println("-------------------");
     }
+    altitude_lps = pressure2altitude(pressure_lps, is_temperature_from_sensord ? temp_lps : car_outside_temperature);
 }
 
 static void lps_task(void *pvParameters) {
     while (1) {
         lps_exec();
-        delay(LPS_UPDATE_CYCLE);
+        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
 

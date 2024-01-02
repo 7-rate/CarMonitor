@@ -8,7 +8,7 @@
 /***********************************/
 /* Local definitions               */
 /***********************************/
-static const unsigned long WAIT = 100;
+static const unsigned long WAIT = 50;
 static const unsigned long WAIT_MONI = 10;
 
 enum {
@@ -99,7 +99,7 @@ static void display_altitude() {
         SCREEN_TITLE("Altitude");
 
         sprite.setTextColor(WHITE);
-        SET_FONT_AND_SIZE(FreeMonoBold18pt7b, 2);
+        SET_FONT_AND_SIZE(FreeMonoBold12pt7b, 2);
         sprite.setCursor(10, 90);
         sprite.printf("BMP:%dm", (int)altitude);
         sprite.setCursor(10, 150);
@@ -162,17 +162,17 @@ static void display_dpf_status() {
         sprite.printf("%.2fg/L", dpf_pm_gen);
 
         SET_FONT_AND_SIZE(FreeMono9pt7b, 2);
-        sprite.setCursor(20, 170);
+        sprite.setCursor(10, 170);
         sprite.printf("Count");
         SET_FONT_AND_SIZE(FreeMono9pt7b, 3);
-        sprite.setCursor(20, 220);
+        sprite.setCursor(10, 220);
         sprite.printf("%d", dpf_reg_count);
 
         SET_FONT_AND_SIZE(FreeMono9pt7b, 2);
-        sprite.setCursor(180, 170);
+        sprite.setCursor(160, 170);
         sprite.printf("Dist");
         SET_FONT_AND_SIZE(FreeMono9pt7b, 3);
-        sprite.setCursor(180, 220);
+        sprite.setCursor(160, 220);
         sprite.printf("%dkm", dpf_reg_dist);
 
         sprite.pushSprite(0, 0);
@@ -257,10 +257,20 @@ static void display_setting() {
 
         sprite.fillScreen(BLACK);
         SCREEN_TITLE("Setting");
-
+        
+        SET_FONT_AND_SIZE(FreeMono9pt7b, 1);
+        sprite.setCursor(10, 60);
+        sprite.setTextColor(WHITE);
+        sprite.printf("Altitude temp from: ");
+        sprite.printf("%s", is_temperature_from_sensord?"Sensord":"OBD2");
+        
+        sprite.setCursor(10, 90);
+        sprite.setTextColor(WHITE);
+        sprite.printf("Ambient temp: ");
+        sprite.printf("%2.2f", car_outside_temperature);
+        
     }
 
-    // MPU6050 calibration
     sprite.pushSprite(0, 0);
 }
 
@@ -274,6 +284,7 @@ void setup() {
     M5.Lcd.setRotation(3);
     preferences.begin("myApp", false);
     screen = preferences.getInt("screen", SCREEN_ALTITUDE);
+    is_temperature_from_sensord = preferences.getBool("is_temperature_from_sensord", true);
 
     sprite.setColorDepth(8);
     sprite.setTextSize(2);
@@ -323,11 +334,18 @@ void loop() {
             break;
         case SCREEN_SETTING:
             display_setting();
+            btn_process(BTN_A, [](){
+                is_temperature_from_sensord = !is_temperature_from_sensord;
+                preferences.putInt("is_temperature_from_sensord", is_temperature_from_sensord);
+                });
+            btn_process(BTN_C, [](){
+                is_temperature_from_sensord = !is_temperature_from_sensord;
+                preferences.putInt("is_temperature_from_sensord", is_temperature_from_sensord);
+                });
             break;
         default:
             break;
     }
-
 
     btn_process(BTN_B, [](){
         screen++;

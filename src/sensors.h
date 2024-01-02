@@ -30,3 +30,5 @@ extern float temp, pressure, altitude;
 extern float sealevel_pressure_offset;
 
 extern float temp_lps, pressure_lps, altitude_lps;
+
+extern bool is_temperature_from_sensord;

@@ -27,3 +27,4 @@ extern float dpf_pm_gen;
 extern int dpf_reg_count;
 extern int dpf_reg_dist;
 extern int dpf_reg_status;
+extern float car_outside_temperature;
