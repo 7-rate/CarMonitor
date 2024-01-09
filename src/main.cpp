@@ -12,6 +12,7 @@ static const unsigned long WAIT = 50;
 static const unsigned long WAIT_MONI = 10;
 
 enum {
+    SCREEN_OVERVIEW,
     SCREEN_ALTITUDE,
     SCREEN_DPF_STATUS,
     SCREEN_YRP,
@@ -87,6 +88,69 @@ static void btn_process(int button, void func(void)) {
     if (btn->pressedFor(1000) && tmr_button[button] + 10 < millis() ) {
         tmr_button[button] = millis();
         func();
+    }
+}
+
+static void display_overview() {
+    int percent = 0;
+    if (tmr + WAIT < millis()) {
+        tmr = millis();
+
+        // display
+        sprite.fillScreen(BLACK);
+        SCREEN_TITLE("Overview");
+
+        sprite.setTextColor(WHITE);
+        SET_FONT_AND_SIZE(FreeMonoBold9pt7b, 1);
+        sprite.setCursor(10, 60);
+        if (dpf_reg_status) {
+            sprite.setTextColor(RED);
+        } 
+        sprite.printf("DPF");
+
+        sprite.setTextColor(WHITE);
+        sprite.setCursor(10, 130);
+        sprite.printf("Altitude");
+
+        SET_FONT_AND_SIZE(FreeMono9pt7b, 1);
+        sprite.setCursor(15, 80);
+        sprite.printf("Accum");
+        percent = (int)(dpf_pm_accum / PM_MAX * 100);
+        percent = min(percent, 100);
+        sprite.drawRect(75, 70, 90, 15, WHITE);
+        sprite.fillRect(75, 70, 90 * percent / 100, 15, WHITE);
+
+        sprite.setCursor(15, 100);
+        sprite.printf("Gen");
+        percent = (int)(dpf_pm_gen / PM_MAX * 100);
+        percent = min(percent, 100);
+        sprite.drawRect(75, 90, 90, 15, WHITE);
+        sprite.fillRect(75, 90, 90 * percent / 100, 15, WHITE);
+
+        SET_FONT_AND_SIZE(FreeMono9pt7b, 1);
+        sprite.setCursor(200, 70);
+        sprite.printf("Dist");
+        SET_FONT_AND_SIZE(FreeMono9pt7b, 2);
+        sprite.setCursor(200, 100);
+        sprite.printf("%dkm", dpf_reg_dist);
+
+
+        SET_FONT_AND_SIZE(FreeMono9pt7b, 3);
+        sprite.setCursor(15, 180);
+        sprite.printf("%dm", (int)altitude);
+        
+        SET_FONT_AND_SIZE(FreeMono9pt7b, 1);
+        sprite.setCursor(140, 150);
+        sprite.printf("sea:%.2fhPa", SEALEVELPRESSURE_HPA + sealevel_pressure_offset);
+        sprite.setCursor(140, 170);
+        sprite.printf("cur:%.2fhPa", (pressure_lps));
+        sprite.setCursor(140, 190);
+        sprite.printf("temp:%.2fdeg", (temp_lps));
+        sprite.setCursor(140, 210);
+        sprite.printf("outside:%ddeg", (int)car_outside_temperature);
+
+
+        sprite.pushSprite(0, 0);
     }
 }
 
@@ -169,10 +233,10 @@ static void display_dpf_status() {
         sprite.printf("%d", dpf_reg_count);
 
         SET_FONT_AND_SIZE(FreeMono9pt7b, 2);
-        sprite.setCursor(160, 170);
+        sprite.setCursor(140, 170);
         sprite.printf("Dist");
         SET_FONT_AND_SIZE(FreeMono9pt7b, 3);
-        sprite.setCursor(160, 220);
+        sprite.setCursor(140, 220);
         sprite.printf("%dkm", dpf_reg_dist);
 
         sprite.pushSprite(0, 0);
@@ -314,6 +378,15 @@ void loop() {
     M5.update();
 
     switch (screen) {
+        case SCREEN_OVERVIEW:
+            display_overview();
+            btn_process(BTN_A, [](){
+                sealevel_pressure_offset += 0.5;
+                });
+            btn_process(BTN_C, [](){
+                sealevel_pressure_offset += -0.5;
+                });
+            break;
         case SCREEN_ALTITUDE:
             display_altitude();
             btn_process(BTN_A, [](){
@@ -336,11 +409,11 @@ void loop() {
             display_setting();
             btn_process(BTN_A, [](){
                 is_temperature_from_sensord = !is_temperature_from_sensord;
-                preferences.putInt("is_temperature_from_sensord", is_temperature_from_sensord);
+                preferences.putBool("is_temperature_from_sensord", is_temperature_from_sensord);
                 });
             btn_process(BTN_C, [](){
                 is_temperature_from_sensord = !is_temperature_from_sensord;
-                preferences.putInt("is_temperature_from_sensord", is_temperature_from_sensord);
+                preferences.putBool("is_temperature_from_sensord", is_temperature_from_sensord);
                 });
             break;
         default:
@@ -350,7 +423,7 @@ void loop() {
     btn_process(BTN_B, [](){
         screen++;
         if (screen >= SCREEN_NUM) {
-            screen = SCREEN_ALTITUDE;
+            screen = SCREEN_OVERVIEW;
         }
         preferences.putInt("screen", screen);
         });
