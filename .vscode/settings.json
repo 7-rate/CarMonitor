@@ -1,0 +1,39 @@
+{
+
+      "python.formatting.provider": "black",
+      "[c]": {
+        "editor.formatOnType": true,
+        "editor.formatOnSave": true,
+      },
+      "[cpp]": {
+        "editor.formatOnType": true,
+        "editor.formatOnSave": true,
+      },
+      "[javascript][javascriptreact][typescript][typescriptreact]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+      },
+      "[python]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "ms-python.python"
+      },
+      "[css][json][jsonc][html][markdown][yaml]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+      },
+      "files.associations": {
+        "array": "cpp",
+        "*.tcc": "cpp",
+        "deque": "cpp",
+        "string": "cpp",
+        "unordered_map": "cpp",
+        "unordered_set": "cpp",
+        "vector": "cpp",
+        "string_view": "cpp",
+        "memory": "cpp",
+        "random": "cpp",
+        "initializer_list": "cpp",
+        "ranges": "cpp"
+      }
+    }
+    
