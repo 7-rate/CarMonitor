@@ -5,7 +5,7 @@
 /***********************************/
 /* Global definitions              */
 /***********************************/
-#define SEALEVELPRESSURE_HPA (1013.25)
+#define SEALEVELPRESSURE_HPA ( 1013.25 )
 
 /***********************************/
 /* Class                           */
