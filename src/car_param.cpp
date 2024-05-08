@@ -37,6 +37,11 @@ int dpf_reg_dist;
 int dpf_reg_status;
 
 float car_outside_temperature = 0.0f;
+float engine_coolant_temp;
+float engine_oil_temp;
+uint8_t manifold_pressure;
+uint8_t abs_baro_pressure;
+float boost_pressure;
 
 /******************************************************************/
 /* Implementation                                                 */
@@ -116,6 +121,58 @@ static void update_car_outside_temperature() {
     }
 }
 
+static void update_engine_coolant_temp() {
+    float temp = elm.engineCoolantTemp();
+    tmr_obd_timeout = millis();
+    while ( elm.nb_rx_state != ELM_SUCCESS && (long)( millis() - tmr_obd_timeout ) < OBD_TIMEOUT ) {
+        temp = elm.engineCoolantTemp();
+        vTaskDelay( pdMS_TO_TICKS( 10 ) );
+    }
+    if ( elm.nb_rx_state == ELM_SUCCESS ) {
+        engine_coolant_temp = temp;
+    }
+}
+
+static void update_engine_oil_temp() {
+    float temp = elm.oilTemp();
+    tmr_obd_timeout = millis();
+    while ( elm.nb_rx_state != ELM_SUCCESS && (long)( millis() - tmr_obd_timeout ) < OBD_TIMEOUT ) {
+        temp = elm.oilTemp();
+        vTaskDelay( pdMS_TO_TICKS( 10 ) );
+    }
+    if ( elm.nb_rx_state == ELM_SUCCESS ) {
+        engine_oil_temp = temp;
+    }
+}
+
+static void update_manifold_pressure() {
+    uint8_t temp = elm.manifoldPressure();
+    tmr_obd_timeout = millis();
+    while ( elm.nb_rx_state != ELM_SUCCESS && (long)( millis() - tmr_obd_timeout ) < OBD_TIMEOUT ) {
+        temp = elm.manifoldPressure();
+        vTaskDelay( pdMS_TO_TICKS( 10 ) );
+    }
+    if ( elm.nb_rx_state == ELM_SUCCESS ) {
+        manifold_pressure = temp;
+    }
+}
+
+static void update_abs_baro_pressure() {
+    uint8_t temp = elm.absBaroPressure();
+    tmr_obd_timeout = millis();
+    while ( elm.nb_rx_state != ELM_SUCCESS && (long)( millis() - tmr_obd_timeout ) < OBD_TIMEOUT ) {
+        temp = elm.absBaroPressure();
+        vTaskDelay( pdMS_TO_TICKS( 10 ) );
+    }
+    if ( elm.nb_rx_state == ELM_SUCCESS ) {
+        abs_baro_pressure = temp;
+    }
+}
+
+static void update_boost_pressure() {
+    boost_pressure = manifold_pressure * 10 - abs_baro_pressure;
+}
+
 void task_update_obd( void* arg ) {
     while ( 1 ) {
         update_dpf_regeneration_status();
@@ -124,6 +181,11 @@ void task_update_obd( void* arg ) {
         update_dpf_regeneration_count();
         update_dpf_regeneration_distance();
         update_car_outside_temperature();
+        update_engine_coolant_temp();
+        update_engine_oil_temp();
+        update_manifold_pressure();
+        update_abs_baro_pressure();
+        update_boost_pressure();
         vTaskDelay( pdMS_TO_TICKS( 100 ) );
     }
 }

@@ -15,6 +15,7 @@ enum {
     SCREEN_OVERVIEW,
     SCREEN_ALTITUDE,
     SCREEN_DPF_STATUS,
+    SCREEN_ADDITIONAL_METER,
     SCREEN_YRP,
     SCREEN_ACC_MONITOR,
     SCREEN_SETTING,
@@ -238,6 +239,68 @@ static void display_dpf_status() {
     }
 }
 
+static void display_additional_meter() {
+    int percent = 0;
+    if ( tmr + WAIT < millis() ) {
+        tmr = millis();
+
+        // display
+        sprite.fillScreen( BLACK );
+        SCREEN_TITLE( "Meter" );
+
+        sprite.setTextColor( WHITE );
+        SET_FONT_AND_SIZE( FreeMonoBold9pt7b, 1 );
+        sprite.setCursor( 10, 60 );
+        if ( dpf_reg_status ) {
+            sprite.setTextColor( RED );
+        }
+        sprite.printf( "DPF" );
+
+        SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
+        sprite.setCursor( 15, 80 );
+        sprite.printf( "Accum" );
+        percent = (int)( dpf_pm_accum / PM_MAX * 100 );
+        percent = min( percent, 100 );
+        sprite.drawRect( 75, 70, 90, 15, WHITE );
+        sprite.fillRect( 75, 70, 90 * percent / 100, 15, WHITE );
+
+        sprite.setCursor( 15, 100 );
+        sprite.printf( "Gen" );
+        percent = (int)( dpf_pm_gen / PM_MAX * 100 );
+        percent = min( percent, 100 );
+        sprite.drawRect( 75, 90, 90, 15, WHITE );
+        sprite.fillRect( 75, 90, 90 * percent / 100, 15, WHITE );
+
+        SET_FONT_AND_SIZE( FreeMono9pt7b, 2 );
+        sprite.setCursor( 200, 70 );
+        sprite.printf( "Dist" );
+        sprite.setCursor( 200, 100 );
+        sprite.printf( "%dkm", dpf_reg_dist );
+
+        SET_FONT_AND_SIZE( FreeMonoBold9pt7b, 1 );
+        sprite.setCursor( 10, 140 );
+        sprite.printf( "Temperature" );
+
+        SET_FONT_AND_SIZE( FreeMono9pt7b, 2 );
+        sprite.setCursor( 15, 170 );
+        sprite.printf( "Wtr" );
+        sprite.setCursor( 100, 170 );
+        sprite.printf( "%d", (int)engine_coolant_temp );
+
+        sprite.setCursor( 15, 200 );
+        sprite.printf( "Oil" );
+        sprite.setCursor( 100, 200 );
+        sprite.printf( "%d", (int)engine_oil_temp );
+
+        sprite.setCursor( 180, 150 );
+        sprite.printf( "Boost" );
+        sprite.setCursor( 180, 180 );
+        sprite.printf( "%dkpa", (int)boost_pressure );
+
+        sprite.pushSprite( 0, 0 );
+    }
+}
+
 static void display_yrp() {
     if ( tmr + WAIT < millis() ) {
         tmr = millis();
@@ -337,6 +400,8 @@ void setup() {
     bool error = false;
 
     M5.begin();
+    M5.Speaker.begin();
+    M5.Speaker.mute();
     M5.Lcd.setRotation( 3 );
     preferences.begin( "myApp", false );
     screen = preferences.getInt( "screen", SCREEN_ALTITUDE );
@@ -383,6 +448,9 @@ void loop() {
         break;
     case SCREEN_DPF_STATUS:
         display_dpf_status();
+        break;
+    case SCREEN_ADDITIONAL_METER:
+        display_additional_meter();
         break;
     case SCREEN_YRP:
         display_yrp();
