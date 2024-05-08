@@ -400,6 +400,8 @@ void setup() {
     bool error = false;
 
     M5.begin();
+    M5.Speaker.begin();
+    M5.Speaker.mute();
     M5.Lcd.setRotation( 3 );
     preferences.begin( "myApp", false );
     screen = preferences.getInt( "screen", SCREEN_ALTITUDE );
