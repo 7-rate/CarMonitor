@@ -60,6 +60,32 @@ bool is_temperature_from_sensord;
 /***********************************/
 /* Local functions                 */
 /***********************************/
+#define STANDARD_PRESSURE 101325.0
+#define STANDARD_TEMPERATURE 15.0
+#define STANDARD_GRAVITY 9.80665
+
+// 標準気圧に対する海抜0mの高度（m）
+#define ALTITUDE_AT_STANDARD_PRESSURE 0.0
+
+// 以下より、現在地の高度を計算する関数
+// 海面気圧:(SEALEVELPRESSURE_HPA+sealevel_pressure_offset)
+// 現在地気圧：pressure
+
+float pressure2altitude( float pressure_hPa, float temp_degree ) {
+    float pressure_Pa = pressure_hPa * 100.0; // パスカルに変換
+    float temp_K = temp_degree + 273.15;      // ケルビンに変換
+
+    // 標準気圧、標準気温の条件での海抜0mの標準大気圧（パスカル）
+    float standard_pressure_at_altitude_0m =
+        ( ( SEALEVELPRESSURE_HPA + sealevel_pressure_offset ) * 100 ) *
+        exp( -( STANDARD_GRAVITY / ( 287.05 * STANDARD_TEMPERATURE ) ) * ALTITUDE_AT_STANDARD_PRESSURE );
+
+    // 高度の計算
+    float altitude_m = -( 287.05 * temp_K / STANDARD_GRAVITY ) * log( pressure_Pa / standard_pressure_at_altitude_0m );
+
+    return altitude_m;
+}
+
 static void accelgyro_exec() {
     mpu.getMotion6( &ax, &ay, &az, &gx, &gy, &gz );
     madgwickfilter.updateIMU( gx / 131.0, gy / 131.0, gz / 131.0, ax / 16384.0, ay / 16384.0, az / 16384.0 );
@@ -83,9 +109,19 @@ static void bmp_exec() {
         tmr_bmp = millis();
         temp = bmp.readTemperature() + TEMP_OFFSET;
         pressure = bmp.readPressure();
-        altitude = bmp.readAltitude( SEALEVELPRESSURE_HPA + sealevel_pressure_offset );
+        // altitude = bmp.readAltitude( SEALEVELPRESSURE_HPA + sealevel_pressure_offset );
+        if ( is_temperature_from_sensord ) {
+            altitude = pressure2altitude( pressure / 100.0, temp );
+        } else {
+            // 気温ソースがOBD2の場合、OBD2から気温が取得できるまで待つ
+            while ( !temp_initialized ) {
+                vTaskDelay( pdMS_TO_TICKS( 100 ) );
+            }
+            altitude = pressure2altitude( pressure / 100.0, car_outside_temperature );
+        }
         Serial.printf( "------BMP----------\n" );
-        Serial.printf( "Temp: %.2f\nPressure: %.2f\nAltitude: %.2f\n", temp, pressure, altitude );
+        Serial.printf( "Temp: %.2f\nPressure: %.2f\nAltitude: %.2f\noffset: %.2f", temp, pressure, altitude,
+                       sealevel_pressure_offset );
         Serial.printf( "-------------------\n" );
     }
 }
@@ -98,17 +134,6 @@ static void bmp_task( void* pvParameters ) {
         vTaskDelayUntil( &xLastWakeTime, xFrequency );
         bmp_exec();
     }
-}
-
-// 以下より、現在地の高度を計算する関数
-// 海面気圧:(SEALEVELPRESSURE_HPA+sealevel_pressure_offset)
-// 現在地気圧：pressure
-static float pressure2altitude( float pressure, float temp ) {
-    // float altitude = 44330.0 * (1.0 - pow(pressure / (SEALEVELPRESSURE_HPA + sealevel_pressure_offset), 0.1903));
-    float altitude = ( ( pow( ( ( SEALEVELPRESSURE_HPA + sealevel_pressure_offset ) / pressure ), 1 / 5.257 ) - 1.0 ) *
-                       ( temp + 273.15 ) ) /
-                     0.0065;
-    return altitude;
 }
 
 static void lps_exec() {

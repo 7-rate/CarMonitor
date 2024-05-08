@@ -36,7 +36,8 @@ int dpf_reg_count;
 int dpf_reg_dist;
 int dpf_reg_status;
 
-float car_outside_temperature = 0.0f;
+float car_outside_temperature = 25.0f;
+bool temp_initialized = false;
 float engine_coolant_temp;
 float engine_oil_temp;
 uint8_t manifold_pressure;
@@ -118,6 +119,7 @@ static void update_car_outside_temperature() {
     }
     if ( elm.nb_rx_state == ELM_SUCCESS ) {
         car_outside_temperature = temp;
+        temp_initialized = true;
     }
 }
 
