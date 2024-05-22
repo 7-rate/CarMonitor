@@ -15,7 +15,7 @@
 - DPFステータス表示
     ![dpf](docs/images/dpf_status.jpg "dpf_status")
 - 気圧高度表示
-    ![altitude](docs/images/altitude.jpg "altitude")
+    ![altitude_view](docs/images/altitude_view.jpg "altitude_view")
 - 設定表示
     - 気圧高度の気圧ソースを設定します。(センサ or OBD2による外気温)
     ![setting](docs/images/setting.jpg "setting")
