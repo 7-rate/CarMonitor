@@ -255,7 +255,8 @@ static void display_additional_meter() {
             sprite.setTextColor( RED );
         }
         sprite.printf( "DPF" );
-
+        
+        sprite.setTextColor( WHITE );
         SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
         sprite.setCursor( 15, 80 );
         sprite.printf( "Accum" );
