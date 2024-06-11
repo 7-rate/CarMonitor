@@ -163,8 +163,6 @@ static void display_altitude() {
         SET_FONT_AND_SIZE( FreeMonoBold12pt7b, 2 );
         sprite.setCursor( 10, 90 );
         sprite.printf( "BMP:%dm", (int)altitude );
-        sprite.setCursor( 10, 150 );
-        sprite.printf( "LPS:%dm", (int)altitude_lps );
 
         SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
         sprite.setCursor( 20, 170 );
@@ -175,15 +173,6 @@ static void display_altitude() {
         sprite.printf( "cur:%.2fhPa", ( pressure / 100.0 ) );
         sprite.setCursor( 20, 230 );
         sprite.printf( "temp:%.2fdeg", ( temp ) );
-
-        sprite.setCursor( 190, 170 );
-        sprite.printf( "LPS" );
-        sprite.setCursor( 190, 190 );
-        sprite.printf( "%.2fhPa", SEALEVELPRESSURE_HPA + sealevel_pressure_offset );
-        sprite.setCursor( 190, 210 );
-        sprite.printf( "%.2fhPa", ( pressure_lps ) );
-        sprite.setCursor( 190, 230 );
-        sprite.printf( "%.2fdeg", ( temp_lps ) );
 
         sprite.pushSprite( 0, 0 );
     }
@@ -255,7 +244,7 @@ static void display_additional_meter() {
             sprite.setTextColor( RED );
         }
         sprite.printf( "DPF" );
-        
+
         sprite.setTextColor( WHITE );
         SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
         sprite.setCursor( 15, 80 );
@@ -423,9 +412,6 @@ void setup() {
 
     // Initializing MPU6050
     accelgyro_init();
-
-    // Initializing LPS25HB
-    lps_init();
 
     // Initializing ELM327
     car_param_init();
