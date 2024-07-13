@@ -203,12 +203,12 @@ void car_param_init() {
     bool error;
 
     // Connecting ELM327
-    sprite.setCursor( 10, 110 );
+    sprite.setCursor( 10, 80 );
     sprite.printf( "Init ELM327 phase1..." );
     sprite.pushSprite( 0, 0 );
     SerialBT.begin( "ArduHUD", true );
     error = !SerialBT.connect( ELM327_MACADDRESS );
-    sprite.setCursor( 240, 110 );
+    sprite.setCursor( 240, 80 );
     sprite.print( error ? "err!!" : "done!" );
     sprite.pushSprite( 0, 0 );
 
@@ -216,11 +216,11 @@ void car_param_init() {
         return;
     }
 
-    sprite.setCursor( 10, 140 );
+    sprite.setCursor( 10, 110 );
     sprite.printf( "Init ELM327 phase2..." );
     sprite.pushSprite( 0, 0 );
     error = !elm.begin( SerialBT, true, 2000 );
-    sprite.setCursor( 240, 140 );
+    sprite.setCursor( 240, 110 );
     sprite.print( error ? "err!!" : "done!" );
     sprite.pushSprite( 0, 0 );
 

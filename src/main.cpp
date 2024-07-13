@@ -161,12 +161,10 @@ static void display_altitude() {
 
         sprite.setTextColor( WHITE );
         SET_FONT_AND_SIZE( FreeMonoBold12pt7b, 2 );
-        sprite.setCursor( 10, 90 );
-        sprite.printf( "BMP:%dm", (int)altitude );
+        sprite.setCursor( 10, 110 );
+        sprite.printf( "%4.2fm", altitude );
 
         SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
-        sprite.setCursor( 20, 170 );
-        sprite.printf( "BMP" );
         sprite.setCursor( 20, 190 );
         sprite.printf( "sea:%.2fhPa", SEALEVELPRESSURE_HPA + sealevel_pressure_offset );
         sprite.setCursor( 20, 210 );
@@ -378,6 +376,11 @@ static void display_setting() {
         sprite.setTextColor( WHITE );
         sprite.printf( "Ambient temp: " );
         sprite.printf( "%2.2f", car_outside_temperature );
+
+        sprite.setCursor( 10, 200 );
+        sprite.printf( "A:sensor" );
+        sprite.setCursor( 10, 220 );
+        sprite.printf( "C:Clear" );
     }
 
     sprite.pushSprite( 0, 0 );
@@ -452,8 +455,9 @@ void loop() {
             preferences.putBool( "sensor_type", is_temperature_from_sensord );
         } );
         btn_process( BTN_C, []() {
-            is_temperature_from_sensord = !is_temperature_from_sensord;
-            preferences.putBool( "sensor_type", is_temperature_from_sensord );
+            // preferenceをクリアしたらソフトリセットする
+            preferences.clear();
+            ESP.restart();
         } );
         break;
     default:
