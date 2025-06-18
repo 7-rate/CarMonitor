@@ -2,8 +2,6 @@
 #include "sensors.h"
 #include "common.h"
 #include <Wire.h>
-#include <MPU6050.h>
-#include <MadgwickAHRS.h>
 #include <Adafruit_BMP280.h>
 #include <Adafruit_Sensor.h>
 #include "car_param.h"
@@ -14,27 +12,15 @@
 /***********************************/
 /* Local definitions               */
 /***********************************/
-// MPU6050 offsets
-#define MPU6050_XA_OFFSET ( -3164 )
-#define MPU6050_YA_OFFSET ( 348 )
-#define MPU6050_ZA_OFFSET ( 2009 )
-#define MPU6050_XG_OFFSET ( -49 )
-#define MPU6050_YG_OFFSET ( -15 )
-#define MPU6050_ZG_OFFSET ( -61 )
-
 #define BMP_UPDATE_CYCLE ( 100 )
-#define MPU_UPDATE_CYCLE ( 100 )
 
 #define TEMP_OFFSET ( -2.5 )
 
 /***********************************/
 /* Local Variables                 */
 /***********************************/
-static MPU6050 mpu( 0x68 );
-static Madgwick madgwickfilter;
 static Adafruit_BMP280 bmp;
 static unsigned long tmr_bmp;
-static unsigned long tmr_mpu;
 
 /***********************************/
 /* Global Variables                */
@@ -79,24 +65,6 @@ float pressure2altitude( float pressure_hPa, float temp_degree ) {
     return altitude_m;
 }
 
-static void accelgyro_exec() {
-    mpu.getMotion6( &ax, &ay, &az, &gx, &gy, &gz );
-    madgwickfilter.updateIMU( gx / 131.0, gy / 131.0, gz / 131.0, ax / 16384.0, ay / 16384.0, az / 16384.0 );
-    roll = madgwickfilter.getRoll();
-    pitch = madgwickfilter.getPitch();
-    yaw = madgwickfilter.getYaw();
-}
-
-static void accelgyro_task( void* pvParameters ) {
-    const TickType_t xFrequency = ( MPU_UPDATE_CYCLE ) / portTICK_PERIOD_MS;
-    TickType_t xLastWakeTime = xTaskGetTickCount();
-
-    while ( 1 ) {
-        vTaskDelayUntil( &xLastWakeTime, xFrequency );
-        accelgyro_exec();
-    }
-}
-
 static void bmp_exec() {
     if ( bmp.takeForcedMeasurement() ) {
         tmr_bmp = millis();
@@ -136,25 +104,6 @@ static void bmp_task( void* pvParameters ) {
 /***********************************/
 /* Global functions                */
 /***********************************/
-void accelgyro_init() {
-    sprite.setCursor( 10, 50 );
-    sprite.printf( "Init MPU6050..." );
-    sprite.pushSprite( 0, 0 );
-    mpu.initialize();
-    mpu.setXAccelOffset( MPU6050_XA_OFFSET );
-    mpu.setYAccelOffset( MPU6050_YA_OFFSET );
-    mpu.setZAccelOffset( MPU6050_ZA_OFFSET );
-    mpu.setXGyroOffset( MPU6050_XG_OFFSET );
-    mpu.setYGyroOffset( MPU6050_YG_OFFSET );
-    mpu.setZGyroOffset( MPU6050_ZG_OFFSET );
-    madgwickfilter.begin( 100 ); // sampling 100Hz
-    sprite.setCursor( 240, 50 );
-    sprite.print( "done!" );
-    sprite.pushSprite( 0, 0 );
-
-    xTaskCreatePinnedToCore( accelgyro_task, "accelgyro_task", 4096, NULL, 1, NULL, 0 );
-}
-
 void bmp_init() {
     sprite.setCursor( 10, 20 );
     sprite.print( "Init BMP280..." );

@@ -1,6 +1,8 @@
 #include "car_param.h"
 #include "sensors.h"
 #include "common.h"
+#include <TinyGPSPlus.h>
+#include <SoftwareSerial.h>
 
 /******************************************************************/
 /* Definitions                                                    */
@@ -11,36 +13,39 @@
 static const unsigned long WAIT = 10;
 static const unsigned long WAIT_MONI = 10;
 
-enum {
-    SCREEN_OVERVIEW,
-    SCREEN_ALTITUDE,
+// clang-format off
+enum { 
+    SCREEN_OVERVIEW, 
+    // SCREEN_ALTITUDE,
     SCREEN_DPF_STATUS,
     SCREEN_ADDITIONAL_METER,
-    SCREEN_YRP,
-    SCREEN_ACC_MONITOR,
     SCREEN_SETTING,
     SCREEN_NUM
 };
+// clang-format on
 
 #define SCREEN_TITLE_BG_RED( x )                                                                                       \
-    sprite.fillRect( 0, 0, 320, 40, RED );                                                                             \
+    sprite.fillRect( 0, 0, 320, 20, RED );                                                                             \
     sprite.setTextColor( BLACK );                                                                                      \
-    sprite.setFreeFont( &FreeMonoBold12pt7b );                                                                         \
-    sprite.setTextSize( 2 );                                                                                           \
-    sprite.setCursor( 20, 35 );                                                                                        \
+    sprite.setFreeFont( &FreeMonoBold9pt7b );                                                                          \
+    sprite.setTextSize( 1 );                                                                                           \
+    sprite.setCursor( 10, 10 );                                                                                        \
     sprite.printf( x );
 
 #define SCREEN_TITLE( x )                                                                                              \
-    sprite.fillRect( 0, 0, 320, 40, WHITE );                                                                           \
+    sprite.fillRect( 0, 0, 320, 20, WHITE );                                                                           \
     sprite.setTextColor( BLACK );                                                                                      \
-    sprite.setFreeFont( &FreeMonoBold12pt7b );                                                                         \
-    sprite.setTextSize( 2 );                                                                                           \
-    sprite.setCursor( 20, 35 );                                                                                        \
+    sprite.setFreeFont( &FreeMonoBold9pt7b );                                                                          \
+    sprite.setTextSize( 1 );                                                                                           \
+    sprite.setCursor( 10, 12 );                                                                                        \
     sprite.printf( x );
 
 #define SET_FONT_AND_SIZE( x, y )                                                                                      \
     sprite.setFreeFont( &x );                                                                                          \
     sprite.setTextSize( y );
+
+TinyGPSPlus gps;
+SoftwareSerial ss( 26, 25 );
 
 /***********************************/
 /* Local Variables                 */
@@ -92,6 +97,24 @@ static void btn_process( int button, void func( void ) ) {
     }
 }
 
+// 進捗バー描画ヘルパー
+static void drawProgressBar( int x, int y, int w, int h, float val, float maxVal, uint16_t color ) {
+    int per = (int)( val / maxVal * 100 );
+    per = min( per, 100 );
+    sprite.drawRect( x, y, w, h, color );
+    sprite.fillRect( x, y, w * per / 100, h, color );
+}
+
+/* ステータス盛り盛り表示
+ * ・煤の堆積量
+ * ・DPF再生からのTrip距離
+ * ・水温
+ * ・油温
+ * ・燃料量
+ * ・高度
+ * ・地点気圧
+ * ・海面気圧
+ */
 static void display_overview() {
     int percent = 0;
     if ( tmr + WAIT < millis() ) {
@@ -101,51 +124,75 @@ static void display_overview() {
         sprite.fillScreen( BLACK );
         SCREEN_TITLE( "Overview" );
 
-        sprite.setTextColor( WHITE );
-        SET_FONT_AND_SIZE( FreeMonoBold9pt7b, 1 );
-        sprite.setCursor( 10, 60 );
-        if ( dpf_reg_status ) {
-            sprite.setTextColor( RED );
-        }
+        // 煤の堆積量
+        uint16_t dpf_color = dpf_reg_status ? RED : WHITE;
+        sprite.setTextColor( dpf_color );
+        SET_FONT_AND_SIZE( FreeMono12pt7b, 1 );
+        sprite.setCursor( 10, 38 );
         sprite.printf( "DPF" );
+        float soot = max( dpf_pm_accum, dpf_pm_gen );
+        sprite.setCursor( 220, 38 );
+        sprite.printf( "%.2fg/L", soot );
+        drawProgressBar( 85, 25, 125, 18, soot, PM_MAX, dpf_color );
 
+        // DPF再生からのTrip距離
         sprite.setTextColor( WHITE );
-        sprite.setCursor( 10, 130 );
-        sprite.printf( "Altitude" );
-
-        SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
-        sprite.setCursor( 15, 80 );
-        sprite.printf( "Accum" );
-        percent = (int)( dpf_pm_accum / PM_MAX * 100 );
-        percent = min( percent, 100 );
-        sprite.drawRect( 75, 70, 90, 15, WHITE );
-        sprite.fillRect( 75, 70, 90 * percent / 100, 15, WHITE );
-
-        sprite.setCursor( 15, 100 );
-        sprite.printf( "Gen" );
-        percent = (int)( dpf_pm_gen / PM_MAX * 100 );
-        percent = min( percent, 100 );
-        sprite.drawRect( 75, 90, 90, 15, WHITE );
-        sprite.fillRect( 75, 90, 90 * percent / 100, 15, WHITE );
-
-        sprite.setCursor( 150, 150 );
-        sprite.printf( "sea:%.2fhPa", SEALEVELPRESSURE_HPA + sealevel_pressure_offset );
-        sprite.setCursor( 150, 170 );
-        sprite.printf( "cur:%.2fhPa", ( pressure / 100.0f ) );
-        sprite.setCursor( 150, 190 );
-        sprite.printf( "temp:%.2fdeg", ( temp ) );
-        sprite.setCursor( 150, 210 );
-        sprite.printf( "outside:%ddeg", (int)car_outside_temperature );
-
-        SET_FONT_AND_SIZE( FreeMono9pt7b, 2 );
-        sprite.setCursor( 200, 70 );
-        sprite.printf( "Dist" );
-        sprite.setCursor( 200, 100 );
+        SET_FONT_AND_SIZE( FreeMono12pt7b, 1 );
+        sprite.setCursor( 10, 68 );
+        sprite.printf( "Trip" );
+        sprite.setCursor( 85, 68 );
         sprite.printf( "%dkm", dpf_reg_dist );
 
-        SET_FONT_AND_SIZE( FreeSansBold12pt7b, 2 );
-        sprite.setCursor( 15, 190 );
-        sprite.printf( "%dm", (int)altitude );
+        // 水温
+        sprite.setTextColor( WHITE );
+        SET_FONT_AND_SIZE( FreeMono12pt7b, 1 );
+        sprite.setCursor( 10, 98 );
+        sprite.printf( "Water" );
+        sprite.setCursor( 220, 98 );
+        sprite.printf( "%ddeg", (int)engine_coolant_temp );
+        drawProgressBar( 85, 82, 125, 18, engine_coolant_temp, WARTER_TEMP_MAX, WHITE );
+
+        // 油温
+        sprite.setTextColor( WHITE );
+        SET_FONT_AND_SIZE( FreeMono12pt7b, 1 );
+        sprite.setCursor( 10, 128 );
+        sprite.printf( "Oil" );
+        sprite.setCursor( 220, 128 );
+        sprite.printf( "%ddeg", (int)engine_oil_temp );
+        drawProgressBar( 85, 112, 125, 18, engine_oil_temp, OIL_TEMP_MAX, WHITE );
+
+        // 燃料量
+        sprite.setTextColor( WHITE );
+        SET_FONT_AND_SIZE( FreeMono12pt7b, 1 );
+        sprite.setCursor( 10, 158 );
+        sprite.printf( "Fuel" );
+        sprite.setCursor( 220, 158 );
+        sprite.printf( "%dL",
+                       (int)( fuel_level * FUEL_TANK_CAPACITY ) /
+                           100 ); // fuel_levelはパーセンテージなので、タンク容量を掛ける
+        drawProgressBar( 85, 142, 125, 18, fuel_level, FUEL_LEVEL_MAX, WHITE );
+
+        // 高度
+        sprite.setTextColor( WHITE );
+        SET_FONT_AND_SIZE( FreeMono12pt7b, 1 );
+        sprite.setCursor( 10, 198 );
+        sprite.printf( "Altitude" );
+        SET_FONT_AND_SIZE( FreeMono12pt7b, 2 );
+        sprite.setCursor( 130, 210 );
+        // sprite.printf( "%dm", (int)altitude );
+        sprite.printf( "%dm", (int)gps.altitude.meters() );
+
+        // GPS情報
+        uint32_t gps_color = gps.location.isValid() ? GREEN : RED;
+        sprite.fillCircle( 300, 220, 8, gps_color );
+
+        // 地点気圧、海面気圧
+        // sprite.setTextColor( WHITE );
+        // SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
+        // sprite.setCursor( 120, 215 );
+        // sprite.printf( "%.2fhPa", ( pressure / 100.0 ) );
+        // sprite.setCursor( 120, 235 );
+        // sprite.printf( "sea:%.2fhPa", SEALEVELPRESSURE_HPA + sealevel_pressure_offset );
 
         sprite.pushSprite( 0, 0 );
     }
@@ -192,21 +239,15 @@ static void display_dpf_status() {
         SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
         sprite.setCursor( 10, 75 );
         sprite.printf( "Acum" );
-        percent = (int)( dpf_pm_accum / PM_MAX * 100 );
-        percent = min( percent, 100 );
-        sprite.drawRect( 70, 60, 150, 30, WHITE );
-        sprite.fillRect( 70, 60, 150 * percent / 100, 30, WHITE );
         sprite.setCursor( 230, 75 );
         sprite.printf( "%.2fg/L", dpf_pm_accum );
+        drawProgressBar( 70, 60, 150, 30, dpf_pm_accum, PM_MAX, WHITE );
 
         sprite.setCursor( 10, 115 );
         sprite.printf( "Gene" );
-        percent = (int)( dpf_pm_gen / PM_MAX * 100 );
-        percent = min( percent, 100 );
-        sprite.drawRect( 70, 100, 150, 30, WHITE );
-        sprite.fillRect( 70, 100, 150 * percent / 100, 30, WHITE );
         sprite.setCursor( 230, 115 );
         sprite.printf( "%.2fg/L", dpf_pm_gen );
+        drawProgressBar( 70, 100, 150, 30, dpf_pm_gen, PM_MAX, WHITE );
 
         SET_FONT_AND_SIZE( FreeMono9pt7b, 2 );
         sprite.setCursor( 10, 170 );
@@ -247,17 +288,11 @@ static void display_additional_meter() {
         SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
         sprite.setCursor( 15, 80 );
         sprite.printf( "Accum" );
-        percent = (int)( dpf_pm_accum / PM_MAX * 100 );
-        percent = min( percent, 100 );
-        sprite.drawRect( 75, 70, 90, 15, WHITE );
-        sprite.fillRect( 75, 70, 90 * percent / 100, 15, WHITE );
+        drawProgressBar( 75, 70, 90, 15, dpf_pm_accum, PM_MAX, WHITE );
 
         sprite.setCursor( 15, 100 );
         sprite.printf( "Gen" );
-        percent = (int)( dpf_pm_gen / PM_MAX * 100 );
-        percent = min( percent, 100 );
-        sprite.drawRect( 75, 90, 90, 15, WHITE );
-        sprite.fillRect( 75, 90, 90 * percent / 100, 15, WHITE );
+        drawProgressBar( 75, 90, 90, 15, dpf_pm_gen, PM_MAX, WHITE );
 
         SET_FONT_AND_SIZE( FreeMono9pt7b, 2 );
         sprite.setCursor( 200, 70 );
@@ -285,76 +320,6 @@ static void display_additional_meter() {
         sprite.setCursor( 180, 180 );
         sprite.printf( "%dkpa", (int)boost_pressure );
 
-        sprite.pushSprite( 0, 0 );
-    }
-}
-
-static void display_yrp() {
-    if ( tmr + WAIT < millis() ) {
-        tmr = millis();
-
-        sprite.fillScreen( BLACK );
-        SCREEN_TITLE( "MPU6050" );
-
-        SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
-        sprite.setCursor( 10, 60 );
-        sprite.setTextColor( WHITE );
-        sprite.printf( "Yaw: " );
-        sprite.printf( "%.2f", yaw );
-        sprite.setCursor( 10, 90 );
-        sprite.printf( "Roll: " );
-        sprite.printf( "%.2f", roll );
-        sprite.setCursor( 10, 120 );
-        sprite.printf( "Pitch: " );
-        sprite.printf( "%.2f", pitch );
-
-        sprite.setCursor( 10, 160 );
-        sprite.printf( "ax: " );
-        sprite.printf( "%.2f", ax / 16384.0 );
-        sprite.setCursor( 10, 190 );
-        sprite.printf( "ay: " );
-        sprite.printf( "%.2f", ay / 16384.0 );
-        sprite.setCursor( 10, 220 );
-        sprite.printf( "az: " );
-        sprite.printf( "%.2f", az / 16384.0 );
-
-        sprite.setCursor( 160, 160 );
-        sprite.printf( "gx: " );
-        sprite.printf( "%.2f", gx / 131.0 );
-        sprite.setCursor( 160, 190 );
-        sprite.printf( "gy: " );
-        sprite.printf( "%.2f", gy / 131.0 );
-        sprite.setCursor( 160, 220 );
-        sprite.printf( "gz: " );
-        sprite.printf( "%.2f", gz / 131.0 );
-
-        sprite.pushSprite( 0, 0 );
-    }
-}
-
-static int frame_count = 0;
-static int fps = 0;
-static int sec = 0;
-static void display_acc_monitor() {
-    if ( tmr + WAIT_MONI < millis() ) {
-        tmr = millis();
-        sprite.fillScreen( BLACK );
-
-        SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
-        sprite.setCursor( 10, 20 );
-        sprite.setTextColor( WHITE );
-        sprite.printf( "FPS: %d", fps );
-
-        int32_t x = (int32_t)( 160.0 + ( 160.0 * ( ( -ay ) / 16384.0 ) ) );
-        int32_t y = (int32_t)( 120.0 + ( 120.0 * ( ( az ) / 16384.0 ) ) );
-
-        sprite.drawCircle( x, y, 10, WHITE );
-        frame_count++;
-        if ( sec != millis() / 1000 ) {
-            fps = frame_count;
-            sec = millis() / 1000;
-            frame_count = 0;
-        }
         sprite.pushSprite( 0, 0 );
     }
 }
@@ -395,9 +360,9 @@ void setup() {
     M5.begin();
     M5.Speaker.begin();
     M5.Speaker.mute();
-    M5.Lcd.setRotation( 3 );
+    M5.Lcd.setRotation( 1 );
     preferences.begin( "myApp", false );
-    screen = preferences.getInt( "screen", SCREEN_ALTITUDE );
+    screen = preferences.getInt( "screen", SCREEN_OVERVIEW );
     is_temperature_from_sensord = preferences.getBool( "sensor_type", true );
 
     sprite.setColorDepth( 8 );
@@ -413,11 +378,12 @@ void setup() {
     // Initializing BMP280
     bmp_init();
 
-    // Initializing MPU6050
-    accelgyro_init();
-
     // Initializing ELM327
     car_param_init();
+
+    // Initializing GPS
+    Serial.begin( 115200 );
+    ss.begin( 9600 );
 
     delay( 1000 ); // wait for sensor init
 }
@@ -431,22 +397,16 @@ void loop() {
         btn_process( BTN_A, []() { sealevel_pressure_offset += 0.5; } );
         btn_process( BTN_C, []() { sealevel_pressure_offset += -0.5; } );
         break;
-    case SCREEN_ALTITUDE:
-        display_altitude();
-        btn_process( BTN_A, []() { sealevel_pressure_offset += 0.5; } );
-        btn_process( BTN_C, []() { sealevel_pressure_offset += -0.5; } );
-        break;
+    // case SCREEN_ALTITUDE:
+    //     display_altitude();
+    //     btn_process( BTN_A, []() { sealevel_pressure_offset += 0.5; } );
+    //     btn_process( BTN_C, []() { sealevel_pressure_offset += -0.5; } );
+    //     break;
     case SCREEN_DPF_STATUS:
         display_dpf_status();
         break;
     case SCREEN_ADDITIONAL_METER:
         display_additional_meter();
-        break;
-    case SCREEN_YRP:
-        display_yrp();
-        break;
-    case SCREEN_ACC_MONITOR:
-        display_acc_monitor();
         break;
     case SCREEN_SETTING:
         display_setting();
@@ -478,5 +438,10 @@ void loop() {
             altitude_old = altitude;
             preferences.putFloat( "altitude", altitude );
         }
+    }
+
+    while ( ss.available() > 0 ) {
+        char c = ss.read();
+        gps.encode( c );
     }
 }

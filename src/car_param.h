@@ -6,6 +6,10 @@
 /* Global definitions              */
 /***********************************/
 #define PM_MAX ( 6.0 )
+#define WARTER_TEMP_MAX ( 100.0 )
+#define OIL_TEMP_MAX ( 100.0 )
+#define FUEL_LEVEL_MAX ( 100.0 )
+#define FUEL_TANK_CAPACITY ( 44.0 ) // L
 
 /***********************************/
 /* Class                           */
@@ -34,3 +38,4 @@ extern float engine_oil_temp;
 extern uint8_t manifold_pressure;
 extern uint8_t abs_baro_pressure;
 extern float boost_pressure;
+extern float fuel_level;
