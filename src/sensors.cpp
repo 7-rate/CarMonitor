@@ -80,10 +80,10 @@ static void bmp_exec() {
             }
             altitude = pressure2altitude( pressure / 100.0, car_outside_temperature );
         }
-        Serial.printf( "------BMP----------\n" );
-        Serial.printf( "Temp: %.2f\nPressure: %.2f\nAltitude: %.2f\noffset: %.2f", temp, pressure, altitude,
-                       sealevel_pressure_offset );
-        Serial.printf( "-------------------\n" );
+        // Serial.printf( "------BMP----------\n" );
+        // Serial.printf( "Temp: %.2f\nPressure: %.2f\nAltitude: %.2f\noffset: %.2f", temp, pressure, altitude,
+        //                sealevel_pressure_offset );
+        // Serial.printf( "-------------------\n" );
     }
 }
 

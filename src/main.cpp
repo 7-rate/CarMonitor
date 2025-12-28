@@ -59,6 +59,10 @@ static const unsigned long SAVE_PREFARENCES_CYCLE = 1000; // 1sec
 static int screen;
 static float altitude_old;
 
+// デバッグモード用変数
+static bool debug_mode = false;
+static String serial_command = "";
+
 /***********************************/
 /* Global Variables                */
 /***********************************/
@@ -71,6 +75,92 @@ TFT_eSprite sprite = TFT_eSprite( &M5.Lcd );
 /***********************************/
 /* Local functions                 */
 /***********************************/
+// デバッグモード：シリアルコマンド処理
+static void process_debug_command( String cmd ) {
+    cmd.trim();
+    cmd.toLowerCase();
+
+    if ( cmd == "help" || cmd == "h" ) {
+        Serial.println( "\n=== Debug Commands ===" );
+        Serial.println( "help/h              - Show this help" );
+        Serial.println( "debug on/off        - Enable/Disable debug mode" );
+        Serial.println( "dpf <value>         - Set DPF PM accumulation (0-10 g/L)" );
+        Serial.println( "dpfgen <value>      - Set DPF PM generation (0-10 g/L)" );
+        Serial.println( "dpfdist <value>     - Set DPF regeneration distance (km)" );
+        Serial.println( "dpfcount <value>    - Set DPF regeneration count" );
+        Serial.println( "dpfstatus <0/1>     - Set DPF regeneration status" );
+        Serial.println( "water <value>       - Set water temperature (deg)" );
+        Serial.println( "oil <value>         - Set oil temperature (deg)" );
+        Serial.println( "fuel <value>        - Set fuel level (0-100 %)" );
+        Serial.println( "pressure <value>    - Set pressure (Pa)" );
+        Serial.println( "altitude <value>    - Set altitude (m)" );
+        Serial.println( "temp <value>        - Set ambient temperature (deg)" );
+        Serial.println( "boost <value>       - Set boost pressure (kPa)" );
+        Serial.println( "show                - Show all current values" );
+        Serial.println( "=====================\n" );
+    } else if ( cmd == "debug on" ) {
+        debug_mode = true;
+        Serial.println( "Debug mode: ON" );
+    } else if ( cmd == "debug off" ) {
+        debug_mode = false;
+        Serial.println( "Debug mode: OFF" );
+    } else if ( cmd.startsWith( "dpf " ) ) {
+        dpf_pm_accum = cmd.substring( 4 ).toFloat();
+        Serial.printf( "DPF PM Accum: %.2f g/L\n", dpf_pm_accum );
+    } else if ( cmd.startsWith( "dpfgen " ) ) {
+        dpf_pm_gen = cmd.substring( 7 ).toFloat();
+        Serial.printf( "DPF PM Gen: %.2f g/L\n", dpf_pm_gen );
+    } else if ( cmd.startsWith( "dpfdist " ) ) {
+        dpf_reg_dist = cmd.substring( 8 ).toInt();
+        Serial.printf( "DPF Regen Dist: %d km\n", dpf_reg_dist );
+    } else if ( cmd.startsWith( "dpfcount " ) ) {
+        dpf_reg_count = cmd.substring( 9 ).toInt();
+        Serial.printf( "DPF Regen Count: %d\n", dpf_reg_count );
+    } else if ( cmd.startsWith( "dpfstatus " ) ) {
+        dpf_reg_status = cmd.substring( 10 ).toInt();
+        Serial.printf( "DPF Regen Status: %d\n", dpf_reg_status );
+    } else if ( cmd.startsWith( "water " ) ) {
+        engine_coolant_temp = cmd.substring( 6 ).toFloat();
+        Serial.printf( "Water Temp: %.1f deg\n", engine_coolant_temp );
+    } else if ( cmd.startsWith( "oil " ) ) {
+        engine_oil_temp = cmd.substring( 4 ).toFloat();
+        Serial.printf( "Oil Temp: %.1f deg\n", engine_oil_temp );
+    } else if ( cmd.startsWith( "fuel " ) ) {
+        fuel_level = cmd.substring( 5 ).toFloat();
+        Serial.printf( "Fuel Level: %.1f %%\n", fuel_level );
+    } else if ( cmd.startsWith( "pressure " ) ) {
+        pressure = cmd.substring( 9 ).toFloat();
+        Serial.printf( "Pressure: %.1f Pa (%.1f hPa)\n", pressure, pressure / 100.0 );
+    } else if ( cmd.startsWith( "altitude " ) ) {
+        altitude = cmd.substring( 9 ).toFloat();
+        Serial.printf( "Altitude: %.1f m\n", altitude );
+    } else if ( cmd.startsWith( "temp " ) ) {
+        temp = cmd.substring( 5 ).toFloat();
+        Serial.printf( "Ambient Temp: %.1f deg\n", temp );
+    } else if ( cmd.startsWith( "boost " ) ) {
+        boost_pressure = cmd.substring( 6 ).toFloat();
+        Serial.printf( "Boost Pressure: %.1f kPa\n", boost_pressure );
+    } else if ( cmd == "show" ) {
+        Serial.println( "\n=== Current Values ===" );
+        Serial.printf( "Debug Mode: %s\n", debug_mode ? "ON" : "OFF" );
+        Serial.printf( "DPF PM Accum: %.2f g/L\n", dpf_pm_accum );
+        Serial.printf( "DPF PM Gen: %.2f g/L\n", dpf_pm_gen );
+        Serial.printf( "DPF Regen Dist: %d km\n", dpf_reg_dist );
+        Serial.printf( "DPF Regen Count: %d\n", dpf_reg_count );
+        Serial.printf( "DPF Regen Status: %d\n", dpf_reg_status );
+        Serial.printf( "Water Temp: %.1f deg\n", engine_coolant_temp );
+        Serial.printf( "Oil Temp: %.1f deg\n", engine_oil_temp );
+        Serial.printf( "Fuel Level: %.1f %%\n", fuel_level );
+        Serial.printf( "Pressure: %.1f hPa\n", pressure / 100.0 );
+        Serial.printf( "Altitude: %.1f m\n", altitude );
+        Serial.printf( "Ambient Temp: %.1f deg\n", temp );
+        Serial.printf( "Boost Pressure: %.1f kPa\n", boost_pressure );
+        Serial.println( "=====================\n" );
+    } else if ( cmd.length() > 0 ) {
+        Serial.println( "Unknown command. Type 'help' for available commands." );
+    }
+}
+
 static void btn_process( int button, void func( void ) ) {
     Button* btn;
     switch ( button ) {
@@ -105,6 +195,165 @@ static void drawProgressBar( int x, int y, int w, int h, float val, float maxVal
     sprite.fillRect( x, y, w * per / 100, h, color );
 }
 
+// ゲージ描画ヘルパー（カラー表示対応）
+// 温度に応じて色を変える（黒背景用に彩度を下げた色）
+static uint16_t getTempColor( float temp, float lowThreshold, float midThreshold, float highThreshold ) {
+    if ( temp <= 40 ) {
+        // 青色（やや白寄り）- RGB565: 水色に近い青
+        return 0x3D9F; // R=7, G=27, B=31 -> 薄い青
+    } else if ( temp <= 80 ) {
+        // 緑色（やや白寄り）- RGB565: 明るい緑
+        return 0x87F0; // R=16, G=63, B=16 -> 薄い緑
+    } else {
+        // 赤色（やや白寄り）- RGB565: ピンクがかった赤
+        return 0xFAAA; // R=31, G=21, B=10 -> 薄い赤
+    }
+}
+
+// カラーゲージ描画（左右対称の半円ゲージ）
+static void drawColorGauge( int centerX, int centerY, int radius, float val, float minVal, float maxVal,
+                            float lowThreshold, float midThreshold, float highThreshold ) {
+    // 背景の円弧（グレー）
+    for ( int r = radius - 10; r <= radius; r++ ) {
+        sprite.drawCircle( centerX, centerY, r, DARKGREY );
+    }
+
+    // 角度の計算（180度から0度まで、左から右へ）
+    float ratio = ( val - minVal ) / ( maxVal - minVal );
+    ratio = constrain( ratio, 0.0, 1.0 );
+    int angle = 180 - (int)( ratio * 180 ); // 180度(左端)から0度(右端)まで
+
+    // 色の決定
+    uint16_t color = getTempColor( val, lowThreshold, midThreshold, highThreshold );
+
+    // ゲージ部分の描画（180度から現在角度まで）
+    for ( int a = 180; a >= angle; a -= 2 ) {
+        float rad = a * PI / 180.0;
+        int x1 = centerX + ( radius - 10 ) * cos( rad );
+        int y1 = centerY - ( radius - 10 ) * sin( rad );
+        int x2 = centerX + radius * cos( rad );
+        int y2 = centerY - radius * sin( rad );
+        sprite.drawLine( x1, y1, x2, y2, color );
+    }
+}
+
+// 水温・油温共有ゲージ描画（270度から下を通って90度まで）
+// 左半分（270度→180度→90度）：水温、右半分（270度→0度→90度）：油温
+static void drawTempGauge( int centerX, int centerY, int radius, float waterTemp, float oilTemp ) {
+    // 背景の円を描画（グレー） - 270度から時計回りに360度（0度経由で90度まで）
+    for ( int r = radius - 10; r <= radius; r++ ) {
+        // 270度 → 0度（右下半円）
+        for ( int a = 270; a <= 360; a += 2 ) {
+            float rad = a * PI / 180.0;
+            int x = centerX + r * cos( rad );
+            int y = centerY - r * sin( rad );
+            sprite.drawPixel( x, y, DARKGREY );
+        }
+        // 0度 → 90度（右上）
+        for ( int a = 0; a <= 90; a += 2 ) {
+            float rad = a * PI / 180.0;
+            int x = centerX + r * cos( rad );
+            int y = centerY - r * sin( rad );
+            sprite.drawPixel( x, y, DARKGREY );
+        }
+        // 90度 → 180度（左上）
+        for ( int a = 90; a <= 180; a += 2 ) {
+            float rad = a * PI / 180.0;
+            int x = centerX + r * cos( rad );
+            int y = centerY - r * sin( rad );
+            sprite.drawPixel( x, y, DARKGREY );
+        }
+        // 180度 → 270度（左下）
+        for ( int a = 180; a <= 270; a += 2 ) {
+            float rad = a * PI / 180.0;
+            int x = centerX + r * cos( rad );
+            int y = centerY - r * sin( rad );
+            sprite.drawPixel( x, y, DARKGREY );
+        }
+    }
+
+    // 水温ゲージ（左半分：270度→180度→90度）
+    float waterRatio = constrain( waterTemp / 120.0, 0.0, 1.0 );
+    float waterAngleDeg = waterRatio * 180.0; // 0-180度の範囲
+    uint16_t waterColor = getTempColor( waterTemp, 0, 0, 0 );
+
+    // 270度から開始して反時計回りに進む
+    for ( int a = 270; a >= 90; a -= 2 ) {
+        if ( 270 - a <= waterAngleDeg ) {
+            float rad = a * PI / 180.0;
+            int x1 = centerX + ( radius - 10 ) * cos( rad );
+            int y1 = centerY - ( radius - 10 ) * sin( rad );
+            int x2 = centerX + radius * cos( rad );
+            int y2 = centerY - radius * sin( rad );
+            sprite.drawLine( x1, y1, x2, y2, waterColor );
+        }
+    }
+
+    // 油温ゲージ（右半分：270度→0度→90度）
+    float oilRatio = constrain( oilTemp / 140.0, 0.0, 1.0 );
+    float oilAngleDeg = oilRatio * 180.0; // 0-180度の範囲
+    uint16_t oilColor = getTempColor( oilTemp, 0, 0, 0 );
+
+    // 270度から開始して時計回りに進む（270→360→0→90）
+    float currentAngle = 0;
+    for ( int a = 270; currentAngle <= oilAngleDeg && currentAngle <= 180; a += 2 ) {
+        int actualAngle = a > 360 ? a - 360 : a;
+        if ( actualAngle == 450 )
+            actualAngle = 90; // 終点
+
+        float rad = actualAngle * PI / 180.0;
+        int x1 = centerX + ( radius - 10 ) * cos( rad );
+        int y1 = centerY - ( radius - 10 ) * sin( rad );
+        int x2 = centerX + radius * cos( rad );
+        int y2 = centerY - radius * sin( rad );
+        sprite.drawLine( x1, y1, x2, y2, oilColor );
+
+        currentAngle += 2;
+        if ( a >= 360 )
+            break;
+    }
+    // 0度から90度まで継続
+    if ( oilAngleDeg > 90 ) {
+        for ( int a = 0; a <= 90 && a <= ( oilAngleDeg - 90 ); a += 2 ) {
+            float rad = a * PI / 180.0;
+            int x1 = centerX + ( radius - 10 ) * cos( rad );
+            int y1 = centerY - ( radius - 10 ) * sin( rad );
+            int x2 = centerX + radius * cos( rad );
+            int y2 = centerY - radius * sin( rad );
+            sprite.drawLine( x1, y1, x2, y2, oilColor );
+        }
+    }
+
+    // 円の外側にラベル表示
+    sprite.setFreeFont( &FreeMono12pt7b );
+    int fontH = sprite.fontHeight();
+
+    // Water（左側）
+    sprite.setTextColor( waterColor );
+    sprite.setCursor( centerX - radius - 68, centerY - 15 );
+    sprite.printf( "Water" );
+    // 水温（左側）
+    char wbuf[8];
+    snprintf( wbuf, sizeof( wbuf ), "%d", (int)waterTemp );
+    int wWidth = sprite.textWidth( wbuf );
+    int waterX = centerX - radius - 25 - ( wWidth / 2 );
+    int textY = centerY + ( fontH / 2 ) + 15;
+    sprite.setCursor( waterX, textY );
+    sprite.printf( "%s", wbuf );
+
+    // Oil（右側）
+    sprite.setTextColor( oilColor );
+    sprite.setCursor( centerX + radius + 18, centerY - 15 );
+    sprite.printf( "Oil" );
+    // 油温（右側）
+    char obuf[8];
+    snprintf( obuf, sizeof( obuf ), "%d", (int)oilTemp );
+    int oWidth = sprite.textWidth( obuf );
+    int oilX = centerX + radius + 25 - ( oWidth / 2 );
+    sprite.setCursor( oilX, textY );
+    sprite.printf( "%s", obuf );
+}
+
 /* ステータス盛り盛り表示
  * ・煤の堆積量
  * ・DPF再生からのTrip距離
@@ -124,75 +373,82 @@ static void display_overview() {
         sprite.fillScreen( BLACK );
         SCREEN_TITLE( "Overview" );
 
-        // 煤の堆積量
+        // 煤の堆積量（DPF進捗バーを短く、数字を大きく）
         uint16_t dpf_color = dpf_reg_status ? RED : WHITE;
         sprite.setTextColor( dpf_color );
-        SET_FONT_AND_SIZE( FreeMono12pt7b, 1 );
-        sprite.setCursor( 10, 38 );
+        SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
+        sprite.setCursor( 10, 35 );
         sprite.printf( "DPF" );
         float soot = max( dpf_pm_accum, dpf_pm_gen );
-        sprite.setCursor( 220, 38 );
-        sprite.printf( "%.2fg/L", soot );
-        drawProgressBar( 85, 25, 125, 18, soot, PM_MAX, dpf_color );
+        drawProgressBar( 55, 25, 100, 15, soot, PM_MAX, dpf_color );
+        // 数字を大きく表示（右合わせ）
+        SET_FONT_AND_SIZE( FreeMonoBold18pt7b, 1 );
+        char sootBuf[16];
+        snprintf( sootBuf, sizeof( sootBuf ), "%.2f", soot );
+        int sootWidth = sprite.textWidth( sootBuf );
+        sprite.setCursor( 270 - sootWidth, 45 );
+        sprite.printf( "%s", sootBuf );
+        SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
+        sprite.setCursor( 280, 35 );
+        sprite.printf( "g/L" );
 
         // DPF再生からのTrip距離
         sprite.setTextColor( WHITE );
-        SET_FONT_AND_SIZE( FreeMono12pt7b, 1 );
-        sprite.setCursor( 10, 68 );
-        sprite.printf( "Trip" );
-        sprite.setCursor( 85, 68 );
-        sprite.printf( "%dkm", dpf_reg_dist );
-
-        // 水温
-        sprite.setTextColor( WHITE );
-        SET_FONT_AND_SIZE( FreeMono12pt7b, 1 );
-        sprite.setCursor( 10, 98 );
-        sprite.printf( "Water" );
-        sprite.setCursor( 220, 98 );
-        sprite.printf( "%ddeg", (int)engine_coolant_temp );
-        drawProgressBar( 85, 82, 125, 18, engine_coolant_temp, WARTER_TEMP_MAX, WHITE );
-
-        // 油温
-        sprite.setTextColor( WHITE );
-        SET_FONT_AND_SIZE( FreeMono12pt7b, 1 );
-        sprite.setCursor( 10, 128 );
-        sprite.printf( "Oil" );
-        sprite.setCursor( 220, 128 );
-        sprite.printf( "%ddeg", (int)engine_oil_temp );
-        drawProgressBar( 85, 112, 125, 18, engine_oil_temp, OIL_TEMP_MAX, WHITE );
-
-        // 燃料量
-        sprite.setTextColor( WHITE );
-        SET_FONT_AND_SIZE( FreeMono12pt7b, 1 );
-        sprite.setCursor( 10, 158 );
-        sprite.printf( "Fuel" );
-        sprite.setCursor( 220, 158 );
-        sprite.printf( "%dL",
-                       (int)( fuel_level * FUEL_TANK_CAPACITY ) /
-                           100 ); // fuel_levelはパーセンテージなので、タンク容量を掛ける
-        drawProgressBar( 85, 142, 125, 18, fuel_level, FUEL_LEVEL_MAX, WHITE );
+        SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
+        sprite.setCursor( 10, 55 );
+        sprite.printf( "Trip %dkm", dpf_reg_dist );
 
         // 高度
         sprite.setTextColor( WHITE );
-        SET_FONT_AND_SIZE( FreeMono12pt7b, 1 );
-        sprite.setCursor( 10, 198 );
+        SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
+        sprite.setCursor( 10, 80 );
         sprite.printf( "Altitude" );
-        SET_FONT_AND_SIZE( FreeMono12pt7b, 2 );
-        sprite.setCursor( 130, 210 );
-        // sprite.printf( "%dm", (int)altitude );
-        sprite.printf( "%dm", (int)gps.altitude.meters() );
+        SET_FONT_AND_SIZE( FreeMonoBold18pt7b, 1 );
+        char altBuf[16];
+        snprintf( altBuf, sizeof( altBuf ), "%d", (int)gps.altitude.meters() );
+        int altWidth = sprite.textWidth( altBuf );
+        sprite.setCursor( 270 - altWidth, 80 );
+        sprite.printf( "%s", altBuf );
+        SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
+        sprite.setCursor( 280, 80 );
+        sprite.printf( "m" );
+
+        // 燃料量（数値大きく、右寄せ）
+        sprite.setTextColor( WHITE );
+        SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
+        sprite.setCursor( 10, 105 );
+        sprite.printf( "Fuel" );
+        SET_FONT_AND_SIZE( FreeMonoBold18pt7b, 1 );
+        char fuelBuf[16];
+        snprintf( fuelBuf, sizeof( fuelBuf ), "%d", (int)( fuel_level * FUEL_TANK_CAPACITY ) / 100 );
+        int fuelWidth = sprite.textWidth( fuelBuf );
+        sprite.setCursor( 270 - fuelWidth, 105 );
+        sprite.printf( "%s", fuelBuf );
+        SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
+        sprite.setCursor( 280, 105 );
+        sprite.printf( "L" );
+
+        // 気圧（数値大きく、右寄せ）
+        sprite.setTextColor( WHITE );
+        SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
+        sprite.setCursor( 10, 130 );
+        sprite.printf( "Pressure" );
+        SET_FONT_AND_SIZE( FreeMonoBold18pt7b, 1 );
+        char pressBuf[16];
+        snprintf( pressBuf, sizeof( pressBuf ), "%.1f", ( pressure / 100.0 ) );
+        int pressWidth = sprite.textWidth( pressBuf );
+        sprite.setCursor( 270 - pressWidth, 130 );
+        sprite.printf( "%s", pressBuf );
+        SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
+        sprite.setCursor( 280, 130 );
+        sprite.printf( "hPa" );
+
+        // 水温・油温共有ゲージ（270度→0度→90度）
+        drawTempGauge( 160, 190, 40, engine_coolant_temp, engine_oil_temp );
 
         // GPS情報
         uint32_t gps_color = gps.location.isValid() ? GREEN : RED;
         sprite.fillCircle( 300, 220, 8, gps_color );
-
-        // 地点気圧、海面気圧
-        // sprite.setTextColor( WHITE );
-        // SET_FONT_AND_SIZE( FreeMono9pt7b, 1 );
-        // sprite.setCursor( 120, 215 );
-        // sprite.printf( "%.2fhPa", ( pressure / 100.0 ) );
-        // sprite.setCursor( 120, 235 );
-        // sprite.printf( "sea:%.2fhPa", SEALEVELPRESSURE_HPA + sealevel_pressure_offset );
 
         sprite.pushSprite( 0, 0 );
     }
@@ -375,6 +631,11 @@ void setup() {
     while ( !Serial )
         ;
 
+    Serial.println( "\n\n=== CarMonitor Debug Mode ===" );
+    Serial.println( "Type 'help' for available commands" );
+    Serial.println( "Type 'debug on' to enable debug mode" );
+    Serial.println( "============================\n" );
+
     // Initializing BMP280
     bmp_init();
 
@@ -390,6 +651,25 @@ void setup() {
 
 void loop() {
     M5.update();
+
+    // デバッグモード: シリアルコマンド受信処理
+    while ( Serial.available() > 0 ) {
+        char c = Serial.read();
+        if ( c == '\n' || c == '\r' ) {
+            if ( serial_command.length() > 0 ) {
+                process_debug_command( serial_command );
+                serial_command = "";
+                Serial.print( "> " ); // プロンプト表示
+            }
+        } else {
+            serial_command += c;
+        }
+    }
+
+    // デバッグモードでない場合は通常のOBD2/センサー読み取りを実行
+    if ( !debug_mode ) {
+        car_param_exec();
+    }
 
     switch ( screen ) {
     case SCREEN_OVERVIEW:
